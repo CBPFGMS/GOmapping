@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>GO Mapping Demo (Clear Example Data)</title>
+
+<style>
+    body { font-family: Arial; padding: 20px; }
+    .hidden { display: none; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+    th { background: #f2f2f2; }
+    tr:hover { background: #fafafa; }
+    .link { color: blue; cursor: pointer; text-decoration: underline; }
+    .backBtn { margin-top: 20px; cursor: pointer; color: #555; }
+</style>
+</head>
+
+<body>
+
+<h1>Scenario 1 — GO Mapping</h1>
+
+<!-- ---------------------------------------------------------
+     PAGE 1 — GLOBAL ORGANIZATION SUMMARY
+---------------------------------------------------------- -->
+<div id="page1">
+    <h2>GO Summary</h2>
+
+    <table id="goTable">
+        <thead>
+            <tr>
+                <th>Global_OrgId</th>
+                <th>Global_OrgName</th>
+                <th>Usage Count</th>
+                <th>Most Similar GO</th>
+                <th>Similarity (%)</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+</div>
+
+<!-- ---------------------------------------------------------
+     PAGE 2 — GO DETAIL
+---------------------------------------------------------- -->
+<div id="page2" class="hidden">
+    <h2 id="p2Title"></h2>
+
+    <table id="similarTable">
+        <thead>
+            <tr>
+                <th>GO Name</th>
+                <th>Similarity (%)</th>
+                <th>Mapping Count</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <div class="backBtn" onclick="gotoPage(1)">← Back to Summary</div>
+</div>
+
+<!-- ---------------------------------------------------------
+     PAGE 3 — ORG DETAIL
+---------------------------------------------------------- -->
+<div id="page3" class="hidden">
+    <h2 id="p3Title"></h2>
+
+    <table id="orgTable">
+        <thead>
+            <tr>
+                <th>Org ID</th>
+                <th>Organization Name</th>
+                <th>Org_Acronym</th>
+                <th>PoolFund</th>
+                <th>Similarity to GO (%)</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <div class="backBtn" onclick="gotoPage(2)">← Back to GO Detail</div>
+</div>
+
+
+<script>
+/* -----------------------------------------------------------
+   1) Example Data — clear, human-readable, logical
+----------------------------------------------------------- */
+
+// Global Organizations
+const GOs = [
+  { go_id: 1, name: "Save the Children International" },
+  { go_id: 2, name: "Save the Children UK" },
+  { go_id: 3, name: "Save the Children Jordan" },
+
+  { go_id: 4, name: "International Rescue Committee" },
+  { go_id: 5, name: "IRC Yemen" },
+  { go_id: 6, name: "IRC Jordan" },
+
+  { go_id: 7, name: "ZOA International" },
+  { go_id: 8, name: "ZOA Refugee Care" }
+];
+
+// Instance Organizations (Orgs)
+const Orgs = [
+  // Save the Children family
+  { org_id: 101, org_name: "Save the Children – Sudan", acronym: "SC", poolfund: "Sudan", go_id: 1 },
+  { org_id: 102, org_name: "Save the Children – Iraq", acronym: "SC", poolfund: "Iraq", go_id: 1 },
+  { org_id: 103, org_name: "Save the Children – Ethiopia", acronym: "SC", poolfund: "Ethiopia", go_id: 1 },
+
+  { org_id: 104, org_name: "Save the Children UK – London Office", acronym: "SC-UK", poolfund: "UK", go_id: 2 },
+  { org_id: 105, org_name: "Save the Children UK – Scotland", acronym: "SC-UK", poolfund: "UK", go_id: 2 },
+
+  { org_id: 106, org_name: "Save the Children Jordan – Amman", acronym: "SCJ", poolfund: "Jordan", go_id: 3 },
+
+  // IRC family
+  { org_id: 201, org_name: "IRC – Somalia Response", acronym: "IRC", poolfund: "Somalia", go_id: 4 },
+  { org_id: 202, org_name: "IRC – Kenya Office", acronym: "IRC", country: "Kenya", go_id: 4 },
+
+  { org_id: 203, org_name: "IRC Yemen – Sana'a", acronym: "IRC-Y", poolfund: "Yemen", go_id: 5 },
+
+  { org_id: 204, org_name: "IRC Jordan – Amman HQ", acronym: "IRC-J", poolfund: "Jordan", go_id: 6 },
+
+  // ZOA family
+  { org_id: 301, org_name: "ZOA – South Sudan", acronym: "ZOA", poolfund: "South Sudan", go_id: 7 },
+  { org_id: 302, org_name: "ZOA – Uganda", acronym: "ZOA", poolfund: "Uganda", go_id: 7 },
+
+  { org_id: 303, org_name: "ZOA Refugee Care – Sudan", acronym: "ZOA", poolfund: "Sudan", go_id: 8 }
+];
+
+// GO Similarity relationships
+const GO_similarity = {
+  1: [ { go: 2, score: 95 }, { go: 3, score: 85 } ],
+  2: [ { go: 1, score: 95 }, { go: 3, score: 80 } ],
+  3: [ { go: 1, score: 85 }, { go: 2, score: 80 } ],
+
+  4: [ { go: 5, score: 90 }, { go: 6, score: 82 } ],
+  5: [ { go: 4, score: 90 }, { go: 6, score: 75 } ],
+  6: [ { go: 4, score: 82 }, { go: 5, score: 75 } ],
+
+  7: [ { go: 8, score: 93 } ],
+  8: [ { go: 7, score: 93 } ]
+};
+
+
+/* -----------------------------------------------------------
+   PAGE SWITCH
+----------------------------------------------------------- */
+function gotoPage(n){
+    document.getElementById("page1").classList.add("hidden");
+    document.getElementById("page2").classList.add("hidden");
+    document.getElementById("page3").classList.add("hidden");
+
+    document.getElementById("page"+n).classList.remove("hidden");
+}
+
+
+/* -----------------------------------------------------------
+   PAGE 1 — SUMMARY
+----------------------------------------------------------- */
+function renderPage1(){
+    const tbody = document.querySelector("#goTable tbody");
+    tbody.innerHTML = "";
+
+    GOs.forEach(go => {
+        const usage = Orgs.filter(o=>o.go_id===go.go_id).length;
+
+        const best = GO_similarity[go.go_id]?.[0];
+        const bestGO = best ? GOs.find(g=>g.go_id===best.go) : null;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${go.go_id}</td>
+            <td><span class="link" onclick="openGO(${go.go_id})">${go.name}</span></td>
+            <td>${usage}</td>
+            <td>${bestGO ? bestGO.name : "—"}</td>
+            <td>${best ? best.score : "—"}%</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+
+/* -----------------------------------------------------------
+   PAGE 2 — GO DETAIL
+----------------------------------------------------------- */
+function openGO(goID){
+    gotoPage(2);
+
+    const go = GOs.find(g=>g.go_id===goID);
+    document.getElementById("p2Title").innerText = `GO Detail — similar GOs with "${go.name}"`;
+
+    const tbody = document.querySelector("#similarTable tbody");
+    tbody.innerHTML = "";
+
+    (GO_similarity[goID] || []).forEach(s=>{
+        const target = GOs.find(g=>g.go_id===s.go);
+        const mappingCount = Orgs.filter(o=>o.go_id===target.go_id).length;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${target.name}</td>
+            <td>${s.score}%</td>
+            <td><span class="link" onclick="openOrgList(${target.go_id})">${mappingCount}</span></td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+
+/* -----------------------------------------------------------
+   PAGE 3 — ORG DETAIL
+----------------------------------------------------------- */
+function openOrgList(goID){
+    gotoPage(3);
+
+    const go = GOs.find(g=>g.go_id===goID);
+    document.getElementById("p3Title").innerText = `GO Mappings: ${go.name}`;
+
+    const tbody = document.querySelector("#orgTable tbody");
+    tbody.innerHTML = "";
+
+    Orgs.filter(o=>o.go_id===goID).forEach(o=>{
+        const sim = computeSimilarity(o.org_name, go.name);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${o.org_id}</td>
+            <td>${o.org_name}</td>
+            <td>${o.acronym}</td>
+            <td>${o.poolfund}</td>
+            <td>${sim}%</td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+
+/* -----------------------------------------------------------
+   Simple similarity function for demo
+----------------------------------------------------------- */
+function computeSimilarity(a,b){
+    a=a.toLowerCase(); 
+    b=b.toLowerCase();
+    let match = 0;
+    for(let x of a){
+        if(b.includes(x)) match++;
+    }
+    return Math.floor((match / Math.max(a.length,b.length)) * 100);
+}
+
+
+/* -----------------------------------------------------------
+   INITIAL LOAD
+----------------------------------------------------------- */
+renderPage1();
+
+</script>
+
+</body>
+</html>
