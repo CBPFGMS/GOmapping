@@ -9,16 +9,21 @@ function MappingDashboard() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    // 筛选器状态
+    // Filter state
     const [goFilter, setGoFilter] = useState('');
     const [poolFundFilter, setPoolFundFilter] = useState('');
     const [riskFilter, setRiskFilter] = useState('');
 
-    // 用于下拉选项的唯一值
+    // Unique values for dropdown options
     const [goOptions, setGoOptions] = useState([]);
     const [poolFundOptions, setPoolFundOptions] = useState([]);
 
-    // 获取数据
+    // Pagination state
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(15);
+    const [jumpToPage, setJumpToPage] = useState('');
+
+    // Fetch data
     useEffect(() => {
         fetch('http://localhost:8000/mapping-dashboard/')
             .then(response => {
@@ -39,7 +44,7 @@ function MappingDashboard() {
             });
     }, []);
 
-    // 提取筛选器选项
+    // Extract filter options
     const extractFilterOptions = (data) => {
         const goSet = new Set();
         const pfSet = new Set();
@@ -57,24 +62,24 @@ function MappingDashboard() {
         setPoolFundOptions([...pfSet].sort());
     };
 
-    // 应用筛选
+    // Apply filters
     useEffect(() => {
         if (!data.length) return;
 
         const filtered = data.map(goItem => {
-            // 筛选 Global Org
+            // Filter Global Org
             if (goFilter && goItem.global_org_name !== goFilter) {
                 return null;
             }
 
-            // 筛选该 GO 下的 mappings
+            // Filter mappings under this GO
             const filteredMappings = goItem.mappings.filter(mapping => {
-                // 筛选 PoolFund
+                // Filter PoolFund
                 if (poolFundFilter && mapping.fund_name !== poolFundFilter) {
                     return false;
                 }
 
-                // 筛选 Risk
+                // Filter Risk
                 if (riskFilter && mapping.risk_level !== riskFilter) {
                     return false;
                 }
@@ -82,7 +87,7 @@ function MappingDashboard() {
                 return true;
             });
 
-            // 如果该 GO 没有符合条件的 mapping，返回 null
+            // Return null if no mappings match the criteria
             if (filteredMappings.length === 0) {
                 return null;
             }
@@ -94,9 +99,10 @@ function MappingDashboard() {
         }).filter(item => item !== null);
 
         setFilteredData(filtered);
+        setCurrentPage(1); // Reset to first page when filter changes
     }, [goFilter, poolFundFilter, riskFilter, data]);
 
-    // 获取风险等级样式类
+    // Get risk level style class
     const getRiskClass = (percent) => {
         if (percent === null) return 'risk-none';
         if (percent >= 85) return 'risk-low';
@@ -104,9 +110,65 @@ function MappingDashboard() {
         return 'risk-high';
     };
 
-    // 获取风险等级文本
+    // Get risk level text
     const getRiskLevel = (riskLevel) => {
         return riskLevel || '—';
+    };
+
+    // Flatten data to mapping record array (for pagination)
+    const flattenedData = filteredData.flatMap(goItem =>
+        goItem.mappings.map(mapping => ({
+            goItem,
+            mapping
+        }))
+    );
+
+    // Calculate pagination
+    const totalRecords = flattenedData.length;
+    const totalPages = Math.ceil(totalRecords / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentPageData = flattenedData.slice(startIndex, endIndex);
+
+    // Reorganize current page data to grouped format
+    const groupedPageData = currentPageData.reduce((acc, { goItem, mapping }) => {
+        const lastGroup = acc[acc.length - 1];
+        if (lastGroup && lastGroup.global_org_id === goItem.global_org_id) {
+            lastGroup.mappings.push(mapping);
+        } else {
+            acc.push({
+                global_org_id: goItem.global_org_id,
+                global_org_name: goItem.global_org_name,
+                global_acronym: goItem.global_acronym,
+                mappings: [mapping]
+            });
+        }
+        return acc;
+    }, []);
+
+    // Pagination control functions
+    const handlePageChange = (page) => {
+        if (page >= 1 && page <= totalPages) {
+            setCurrentPage(page);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
+
+    const handleItemsPerPageChange = (e) => {
+        const newItemsPerPage = parseInt(e.target.value);
+        setItemsPerPage(newItemsPerPage);
+        setCurrentPage(1); // Reset to first page
+    };
+
+    const handleJumpToPage = () => {
+        const page = parseInt(jumpToPage);
+        if (page >= 1 && page <= totalPages) {
+            setCurrentPage(page);
+            setJumpToPage('');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            alert(`Please enter a page number between 1 and ${totalPages}`);
+        }
     };
 
     if (loading) {
@@ -143,7 +205,7 @@ function MappingDashboard() {
                     <p>mapping dashboard</p>
                 </div>
 
-                {/* 筛选器区域 */}
+                {/* Filter section */}
                 <div className='filter-section'>
                     <div className='filter-item'>
                         <label>filter Global Org:</label>
@@ -188,7 +250,7 @@ function MappingDashboard() {
                     </div>
                 </div>
 
-                {/* 数据表格 */}
+                {/* Data table */}
                 <div className='table-wrapper'>
                     <table className="dashboard-table">
                         <thead>
@@ -208,12 +270,12 @@ function MappingDashboard() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredData.length === 0 ? (
+                            {groupedPageData.length === 0 ? (
                                 <tr>
                                     <td colSpan="12" className="no-data">no data</td>
                                 </tr>
                             ) : (
-                                filteredData.map((goItem) => (
+                                groupedPageData.map((goItem) => (
                                     goItem.mappings.map((mapping, idx) => (
                                         <tr key={`${goItem.global_org_id}-${mapping.instance_org_id || idx}`}>
                                             {idx === 0 && (
@@ -265,11 +327,97 @@ function MappingDashboard() {
                     </table>
                 </div>
 
+                {/* Pagination controls */}
+                {totalRecords > 0 && (
+                    <div className='pagination-container'>
+                        <div className='pagination-info'>
+                            <span>
+                                Showing {startIndex + 1} to {Math.min(endIndex, totalRecords)} of {totalRecords} records
+                            </span>
+                        </div>
+
+                        <div className='pagination-controls'>
+                            {/* Items per page selection */}
+                            <div className='items-per-page'>
+                                <label>Items per page:</label>
+                                <select
+                                    value={itemsPerPage}
+                                    onChange={handleItemsPerPageChange}
+                                    className='page-select'
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={15}>15</option>
+                                    <option value={20}>20</option>
+                                    <option value={30}>30</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                            </div>
+
+                            {/* Page navigation buttons */}
+                            <div className='page-buttons'>
+                                <button
+                                    onClick={() => handlePageChange(1)}
+                                    disabled={currentPage === 1}
+                                    className='page-btn'
+                                >
+                                    ««
+                                </button>
+                                <button
+                                    onClick={() => handlePageChange(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className='page-btn'
+                                >
+                                    ‹
+                                </button>
+
+                                <span className='page-info'>
+                                    Page {currentPage} of {totalPages}
+                                </span>
+
+                                <button
+                                    onClick={() => handlePageChange(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                    className='page-btn'
+                                >
+                                    ›
+                                </button>
+                                <button
+                                    onClick={() => handlePageChange(totalPages)}
+                                    disabled={currentPage === totalPages}
+                                    className='page-btn'
+                                >
+                                    »»
+                                </button>
+                            </div>
+
+                            {/* Jump to specific page */}
+                            <div className='jump-to-page'>
+                                <label>Go to page:</label>
+                                <input
+                                    type='number'
+                                    min='1'
+                                    max={totalPages}
+                                    value={jumpToPage}
+                                    onChange={(e) => setJumpToPage(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleJumpToPage()}
+                                    className='page-input'
+                                    placeholder='#'
+                                />
+                                <button
+                                    onClick={handleJumpToPage}
+                                    className='page-btn jump-btn'
+                                >
+                                    Go
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div className='summary-footer'>
-                    <p>shows <strong>{filteredData.length}</strong> global orgnizations，
-                        <strong>
-                            {filteredData.reduce((sum, item) => sum + item.mappings.length, 0)}
-                        </strong> mapping records in total
+                    <p>Total: <strong>{filteredData.length}</strong> global organizations，
+                        <strong>{totalRecords}</strong> mapping records
                     </p>
                 </div>
             </div>

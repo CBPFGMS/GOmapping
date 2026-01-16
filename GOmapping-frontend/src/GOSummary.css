@@ -1,5 +1,5 @@
 /* ============================================
-   容器和整体布局
+   Container and layout
 ============================================ */
 .go-summary-container {
     width: 100%;
@@ -55,7 +55,7 @@
 }
 
 /* ============================================
-   表格容器
+   Table wrapper
 ============================================ */
 .table-wrapper {
     background: white;
@@ -67,7 +67,7 @@
     padding-bottom: 2px;
 }
 
-/* 确保滚动条区域可点击 */
+/* Ensure scrollbar area is clickable */
 .table-wrapper::-webkit-scrollbar {
     height: 12px;
 }
@@ -100,7 +100,7 @@
 }
 
 /* ============================================
-   表格样式
+   Table styles
 ============================================ */
 .gotable {
     width: 100%;
@@ -145,7 +145,7 @@
 }
 
 /* ============================================
-   特殊列样式
+   Special column styles
 ============================================ */
 .gotable td:first-child {
     font-weight: 600;
@@ -162,7 +162,7 @@
 }
 
 /* ============================================
-   可点击链接样式
+   Clickable link styles
 ============================================ */
 .link-text {
     color: #667eea;
@@ -178,7 +178,7 @@
     border-bottom: 2px solid #764ba2;
 }
 
-/* 使用次数徽章样式 */
+/* Usage count badge styles */
 .usage-badge {
     display: inline-block;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -200,7 +200,7 @@
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
 }
 
-/* 相似度颜色编码 */
+/* Similarity color coding */
 .similarity-high {
     color: #27ae60;
     font-weight: 700;
@@ -223,7 +223,140 @@
 }
 
 /* ============================================
-   加载和错误状态
+   Pagination controls
+============================================ */
+.pagination-container {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    padding: 20px 25px;
+    margin-top: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.pagination-info {
+    text-align: center;
+    margin-bottom: 15px;
+    color: #666;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 25px;
+    flex-wrap: wrap;
+}
+
+.items-per-page,
+.jump-to-page {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.items-per-page label,
+.jump-to-page label {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.page-select,
+.page-input {
+    padding: 8px 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: white;
+    transition: all 0.3s ease;
+    font-family: inherit;
+}
+
+.page-select {
+    cursor: pointer;
+    min-width: 80px;
+}
+
+.page-input {
+    width: 70px;
+    text-align: center;
+}
+
+.page-select:hover,
+.page-input:hover {
+    border-color: #667eea;
+}
+
+.page-select:focus,
+.page-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.page-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.page-btn {
+    padding: 8px 14px;
+    border: 2px solid #667eea;
+    background: white;
+    color: #667eea;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 40px;
+}
+
+.page-btn:hover:not(:disabled) {
+    background: #667eea;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.page-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: #ccc;
+    color: #999;
+}
+
+.jump-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+}
+
+.jump-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+}
+
+.page-info {
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #f0f4ff 0%, #e8eeff 100%);
+    border-radius: 8px;
+    font-weight: 600;
+    color: #667eea;
+    font-size: 0.95rem;
+    white-space: nowrap;
+}
+
+/* ============================================
+   Loading and error states
 ============================================ */
 .loading,
 .error {
@@ -276,8 +409,15 @@
 }
 
 /* ============================================
-   响应式设计
+   Responsive design
 ============================================ */
+@media (max-width: 1200px) {
+    .pagination-controls {
+        flex-direction: column;
+        gap: 15px;
+    }
+}
+
 @media (max-width: 768px) {
     .go-summary-content {
         padding: 15px;
@@ -298,5 +438,20 @@
 
     .table-wrapper {
         overflow-x: auto;
+    }
+
+    .pagination-controls {
+        gap: 12px;
+    }
+
+    .page-buttons {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .items-per-page,
+    .jump-to-page {
+        width: 100%;
+        justify-content: center;
     }
 }

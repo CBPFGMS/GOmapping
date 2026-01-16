@@ -11,11 +11,11 @@ function GODetail() {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        // 调用后端 API 获取相似的 GOs
+        // Call backend API to fetch similar GOs
         fetch(`http://localhost:8000/api/go-detail/${goId}/`)
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('无法获取数据');
+                    throw new Error('Failed to fetch data');
                 }
                 return response.json();
             })
@@ -34,7 +34,7 @@ function GODetail() {
         return (
             <div className='go-detail-container'>
                 <div className='go-detail-content'>
-                    <div className='loading'>正在加载数据...</div>
+                    <div className='loading'>Loading data...</div>
                 </div>
             </div>
         );
@@ -44,7 +44,7 @@ function GODetail() {
         return (
             <div className='go-detail-container'>
                 <div className='go-detail-content'>
-                    <div className='error'>错误: {error}</div>
+                    <div className='error'>Error: {error}</div>
                 </div>
             </div>
         );

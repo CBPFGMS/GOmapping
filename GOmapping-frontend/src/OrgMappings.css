@@ -1,5 +1,5 @@
 /* ============================================
-   Org Mappings 容器
+   Org Mappings container
 ============================================ */
 .org-mappings-container {
     width: 100%;
@@ -35,7 +35,7 @@
 }
 
 /* ============================================
-   表格容器和样式
+   Table wrapper and styles
 ============================================ */
 .table-wrapper {
     background: white;
@@ -47,7 +47,7 @@
     padding-bottom: 2px;
 }
 
-/* 确保滚动条区域可点击 */
+/* Ensure scrollbar area is clickable */
 .table-wrapper::-webkit-scrollbar {
     height: 12px;
 }
@@ -130,7 +130,7 @@
     color: #2c3e50;
 }
 
-/* 相似度颜色编码 */
+/* Similarity color coding */
 .similarity-high {
     color: #27ae60;
     font-weight: 700;
@@ -153,7 +153,7 @@
 }
 
 /* ============================================
-   返回按钮
+   Back button
 ============================================ */
 .back-btn {
     margin-top: 30px;
@@ -177,7 +177,7 @@
 }
 
 /* ============================================
-   加载和错误状态
+   Loading and error states
 ============================================ */
 .loading,
 .error {
@@ -227,7 +227,7 @@
 }
 
 /* ============================================
-   响应式设计
+   Responsive design
 ============================================ */
 @media (max-width: 768px) {
     .org-mappings-container {

@@ -11,11 +11,11 @@ function OrgMappings() {
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        // 调用后端 API 获取 instance organizations
+        // Call backend API to fetch instance organizations
         fetch(`http://localhost:8000/api/org-mappings/${goId}/`)
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('无法获取数据');
+                    throw new Error('Failed to fetch data');
                 }
                 return response.json();
             })
@@ -30,7 +30,7 @@ function OrgMappings() {
             });
     }, [goId]);
 
-    // 相似度样式类
+    // Similarity style class
     const getSimilarityClass = (percent) => {
         if (percent === null) return 'similarity-none';
         if (percent >= 85) return 'similarity-high';
@@ -42,7 +42,7 @@ function OrgMappings() {
         return (
             <div className='org-mappings-container'>
                 <div className='org-mappings-content'>
-                    <div className='loading'>正在加载数据...</div>
+                    <div className='loading'>Loading data...</div>
                 </div>
             </div>
         );
@@ -52,7 +52,7 @@ function OrgMappings() {
         return (
             <div className='org-mappings-container'>
                 <div className='org-mappings-content'>
-                    <div className='error'>错误: {error}</div>
+                    <div className='error'>Error: {error}</div>
                 </div>
             </div>
         );
