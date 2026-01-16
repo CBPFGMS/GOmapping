@@ -63,51 +63,59 @@ function GOsummary() {
 
     return (
         <div className='go-summary-container'>
-            <div className='summary-header'>
-                <h1>🌍 Global Organization Mapping Summary</h1>
-            </div>
+            <div className='go-summary-content'>
+                <div className='summary-header'>
+                    <h1>🌍 Global Organization Mapping Summary</h1>
+                    <button
+                        className='nav-button'
+                        onClick={() => navigate('/mapping-dashboard')}
+                    >
+                        📊 Check Mapping Dashboard
+                    </button>
+                </div>
 
-            <div className='table-wrapper'>
-                <table className="gotable">
-                    <thead>
-                        <tr>
-                            <th>Global_OrgId</th>
-                            <th>Global_OrgName</th>
-                            <th>Usage Count</th>
-                            <th>Most Similar GO</th>
-                            <th>Similarity (%)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {data.map((row) => (
-                            <tr key={row.global_org_id}>
-                                <td>{row.global_org_id}</td>
-                                <td>
-                                    <span
-                                        className='link-text'
-                                        onClick={() => handleGONameClick(row.global_org_id)}
-                                    >
-                                        {row.global_org_name}
-                                    </span>
-                                </td>
-                                <td>
-                                    <span
-                                        className='usage-badge clickable'
-                                        onClick={() => handleUsageCountClick(row.global_org_id)}
-                                    >
-                                        {row.usage_count}
-                                    </span>
-                                </td>
-                                <td>{row.most_similar_go || '—'}</td>
-                                <td className={getSimilarityClass(row.similarity_percent)}>
-                                    {row.similarity_percent !== null
-                                        ? `${row.similarity_percent}%`
-                                        : '—'}
-                                </td>
+                <div className='table-wrapper'>
+                    <table className="gotable">
+                        <thead>
+                            <tr>
+                                <th>Global_OrgId</th>
+                                <th>Global_OrgName</th>
+                                <th>Usage Count</th>
+                                <th>Most Similar GO</th>
+                                <th>Similarity (%)</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {data.map((row) => (
+                                <tr key={row.global_org_id}>
+                                    <td>{row.global_org_id}</td>
+                                    <td>
+                                        <span
+                                            className='link-text'
+                                            onClick={() => handleGONameClick(row.global_org_id)}
+                                        >
+                                            {row.global_org_name}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span
+                                            className='usage-badge clickable'
+                                            onClick={() => handleUsageCountClick(row.global_org_id)}
+                                        >
+                                            {row.usage_count}
+                                        </span>
+                                    </td>
+                                    <td>{row.most_similar_go || '—'}</td>
+                                    <td className={getSimilarityClass(row.similarity_percent)}>
+                                        {row.similarity_percent !== null
+                                            ? `${row.similarity_percent}%`
+                                            : '—'}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     );

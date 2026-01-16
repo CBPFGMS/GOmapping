@@ -41,7 +41,9 @@ function OrgMappings() {
     if (loading) {
         return (
             <div className='org-mappings-container'>
-                <div className='loading'>正在加载数据...</div>
+                <div className='org-mappings-content'>
+                    <div className='loading'>正在加载数据...</div>
+                </div>
             </div>
         );
     }
@@ -49,47 +51,51 @@ function OrgMappings() {
     if (error) {
         return (
             <div className='org-mappings-container'>
-                <div className='error'>错误: {error}</div>
+                <div className='org-mappings-content'>
+                    <div className='error'>错误: {error}</div>
+                </div>
             </div>
         );
     }
 
     return (
         <div className='org-mappings-container'>
-            <div className='mappings-header'>
-                <h1>Scenario 1 — GO Mapping</h1>
-                <h2>GO Mappings: {goInfo?.name}</h2>
-            </div>
-            
-            <div className='table-wrapper'>
-                <table className='mappings-table'>
-                    <thead>
-                        <tr>
-                            <th>Org ID</th>
-                            <th>Organization Name</th>
-                            <th>Org_Acronym</th>
-                            <th>PoolFund</th>
-                            <th>Similarity to GO (%)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {organizations.map((org) => (
-                            <tr key={org.org_id}>
-                                <td>{org.org_id}</td>
-                                <td className='org-name'>{org.org_name}</td>
-                                <td>{org.acronym}</td>
-                                <td>{org.poolfund}</td>
-                                <td className={getSimilarityClass(org.similarity)}>
-                                    {org.similarity}%
-                                </td>
+            <div className='org-mappings-content'>
+                <div className='mappings-header'>
+                    <h1>Scenario 1 — GO Mapping</h1>
+                    <h2>GO Mappings: {goInfo?.name}</h2>
+                </div>
+                
+                <div className='table-wrapper'>
+                    <table className='mappings-table'>
+                        <thead>
+                            <tr>
+                                <th>Org ID</th>
+                                <th>Organization Name</th>
+                                <th>Org_Acronym</th>
+                                <th>PoolFund</th>
+                                <th>Similarity to GO (%)</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            {organizations.map((org) => (
+                                <tr key={org.org_id}>
+                                    <td>{org.org_id}</td>
+                                    <td className='org-name'>{org.org_name}</td>
+                                    <td>{org.acronym}</td>
+                                    <td>{org.poolfund}</td>
+                                    <td className={getSimilarityClass(org.similarity)}>
+                                        {org.similarity}%
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
 
-            <div className='back-btn' onClick={() => navigate(-1)}>
-                ← Back to GO Detail
+                <div className='back-btn' onClick={() => navigate(-1)}>
+                    ← Back to GO Detail
+                </div>
             </div>
         </div>
     );

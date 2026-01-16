@@ -130,5 +130,65 @@ def org_mapping(request, go_id: int):
     )
 
 
+@api_view(["GET"])
+def mapping_dashboard(request):
+    """
+    返回 Scenario 2 的完整数据结构
+    [
+      {
+        "global_org_id": 206,
+        "global_org_name": "Action For Development - South Sudan",
+        "global_acronym": "AFOD",
+        "mappings": [
+          {
+            "instance_org_id": 3611,
+            "instance_org_name": "Action For Development",
+            "instance_org_acronym": "AFOD-SS",
+            "parent_instance_org_id": null,
+            "fund_id": 20,
+            "fund_name": "South Sudan",
+            "match_percent": 62.00,
+            "risk_level": "MEDIUM",
+            "status": "Approved"
+          },
+          ...
+        ]
+      },
+      ...
+    ]
+    """
+    # 获取所有 GlobalOrganization 及其关联的 OrgMapping
+    global_orgs = GlobalOrganization.objects.all().order_by("global_org_id")
+    
+    result = []
+    for go in global_orgs:
+        mappings_qs = OrgMapping.objects.filter(global_org_id=go.global_org_id).order_by("id")
+        
+        mappings = []
+        for mapping in mappings_qs:
+            mappings.append({
+                "instance_org_id": mapping.instance_org_id,
+                "instance_org_name": mapping.instance_org_name,
+                "instance_org_acronym": mapping.instance_org_acronym,
+                "parent_instance_org_id": mapping.parent_instance_org_id,
+                "fund_id": mapping.fund_id,
+                "fund_name": mapping.fund_name,
+                "match_percent": float(mapping.match_percent) if mapping.match_percent is not None else None,
+                "risk_level": mapping.risk_level,
+                "status": mapping.status,
+            })
+        
+        # 只包含有 mappings 的 GO
+        if mappings:
+            result.append({
+                "global_org_id": go.global_org_id,
+                "global_org_name": go.global_org_name,
+                "global_acronym": go.global_acronym,
+                "mappings": mappings,
+            })
+    
+    return Response(result)
+
+
 
 

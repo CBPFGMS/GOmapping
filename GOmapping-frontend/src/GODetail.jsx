@@ -33,7 +33,9 @@ function GODetail() {
     if (loading) {
         return (
             <div className='go-detail-container'>
-                <div className='loading'>正在加载数据...</div>
+                <div className='go-detail-content'>
+                    <div className='loading'>正在加载数据...</div>
+                </div>
             </div>
         );
     }
@@ -41,48 +43,52 @@ function GODetail() {
     if (error) {
         return (
             <div className='go-detail-container'>
-                <div className='error'>错误: {error}</div>
+                <div className='go-detail-content'>
+                    <div className='error'>错误: {error}</div>
+                </div>
             </div>
         );
     }
 
     return (
         <div className='go-detail-container'>
-            <div className='detail-header'>
-                <h1>Scenario 1 — GO Mapping</h1>
-                <h2>GO Detail — similar GOs with "{goInfo?.name}"</h2>
-            </div>
-            
-            <div className='table-wrapper'>
-                <table className='detail-table'>
-                    <thead>
-                        <tr>
-                            <th>GO Name</th>
-                            <th>Similarity (%)</th>
-                            <th>Mapping Count</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {similarGOs.map((row, index) => (
-                            <tr key={index}>
-                                <td>{row.go_name}</td>
-                                <td className='similarity-cell'>{row.similarity}%</td>
-                                <td>
-                                    <span 
-                                        className='link-text'
-                                        onClick={() => navigate(`/org-mappings/${row.go_id}`)}
-                                    >
-                                        {row.mapping_count}
-                                    </span>
-                                </td>
+            <div className='go-detail-content'>
+                <div className='detail-header'>
+                    <h1>Scenario 1 — GO Mapping</h1>
+                    <h2>GO Detail — similar GOs with "{goInfo?.name}"</h2>
+                </div>
+                
+                <div className='table-wrapper'>
+                    <table className='detail-table'>
+                        <thead>
+                            <tr>
+                                <th>GO Name</th>
+                                <th>Similarity (%)</th>
+                                <th>Mapping Count</th>
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
+                        </thead>
+                        <tbody>
+                            {similarGOs.map((row, index) => (
+                                <tr key={index}>
+                                    <td>{row.go_name}</td>
+                                    <td className='similarity-cell'>{row.similarity}%</td>
+                                    <td>
+                                        <span 
+                                            className='link-text'
+                                            onClick={() => navigate(`/org-mappings/${row.go_id}`)}
+                                        >
+                                            {row.mapping_count}
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
 
-            <div className='back-btn' onClick={() => navigate('/')}>
-                ← Back to Summary
+                <div className='back-btn' onClick={() => navigate('/')}>
+                    ← Back to Summary
+                </div>
             </div>
         </div>
     );
