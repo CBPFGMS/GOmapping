@@ -15,7 +15,41 @@ def go_list(request):
 
 @api_view(["GET"])
 def go_summary(request):
-    # 取“每个 source_global_org 的最大 similarity_percent 对应那一行”
+    # Auto-update usage_count for all Global Organizations
+    # Count how many instance organizations are mapped to each GO
+    from django.db.models import Count
+    
+    # Calculate usage count for each GO from org_mapping table
+    usage_counts = (
+        OrgMapping.objects
+        .values('global_org_id')
+        .annotate(count=Count('id'))
+    )
+    
+    # Update usage_count in global_organization table
+    for item in usage_counts:
+        GlobalOrganization.objects.filter(
+            global_org_id=item['global_org_id']
+        ).update(usage_count=item['count'])
+    
+    # Also set usage_count to 0 for GOs with no mappings
+    # Get all GO IDs that have mappings
+    go_ids_with_mappings = set(item['global_org_id'] for item in usage_counts)
+    
+    # Get all GO IDs
+    all_go_ids = set(GlobalOrganization.objects.values_list('global_org_id', flat=True))
+    
+    # Find GOs with no mappings
+    go_ids_without_mappings = all_go_ids - go_ids_with_mappings
+    
+    # Set their usage_count to 0
+    if go_ids_without_mappings:
+        GlobalOrganization.objects.filter(
+            global_org_id__in=go_ids_without_mappings
+        ).update(usage_count=0)
+    
+    # Now fetch the summary data with updated usage_count
+    # Get best similarity for each GO
     best = (
         GoSimilarity.objects
         .filter(source_global_org_id=OuterRef("pk"))
