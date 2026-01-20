@@ -410,14 +410,13 @@ def mapping_dashboard(request):
                 "status": mapping.status,
             })
         
-        # 只包含有 mappings 的 GO
-        if mappings:
-            result.append({
-                "global_org_id": go.global_org_id,
-                "global_org_name": go.global_org_name,
-                "global_acronym": go.global_acronym,
-                "mappings": mappings,
-            })
+        # Include ALL GOs, even those without mappings
+        result.append({
+            "global_org_id": go.global_org_id,
+            "global_org_name": go.global_org_name,
+            "global_acronym": go.global_acronym,
+            "mappings": mappings,  # Will be empty list if no mappings
+        })
     
     return Response(result)
 

@@ -87,8 +87,9 @@ function MappingDashboard() {
                 return true;
             });
 
-            // Return null if no mappings match the criteria
-            if (filteredMappings.length === 0) {
+            // Return null if no mappings match the criteria AND filters are applied
+            // If no filters are applied, show all GOs even without mappings
+            if (filteredMappings.length === 0 && (poolFundFilter || riskFilter)) {
                 return null;
             }
 
@@ -115,15 +116,28 @@ function MappingDashboard() {
         return riskLevel || '—';
     };
 
+    // Calculate real mapping records (excluding empty GOs)
+    const realMappingRecords = filteredData.reduce((total, goItem) => {
+        return total + goItem.mappings.length;
+    }, 0);
+
     // Flatten data to mapping record array (for pagination)
-    const flattenedData = filteredData.flatMap(goItem =>
-        goItem.mappings.map(mapping => ({
+    // Include GOs without mappings as well (for display purposes)
+    const flattenedData = filteredData.flatMap(goItem => {
+        if (goItem.mappings.length === 0) {
+            // GO without mappings - show as single row with empty mapping
+            return [{
+                goItem,
+                mapping: null
+            }];
+        }
+        return goItem.mappings.map(mapping => ({
             goItem,
             mapping
-        }))
-    );
+        }));
+    });
 
-    // Calculate pagination
+    // Calculate pagination (based on display rows, including empty GOs)
     const totalRecords = flattenedData.length;
     const totalPages = Math.ceil(totalRecords / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -140,7 +154,7 @@ function MappingDashboard() {
                 global_org_id: goItem.global_org_id,
                 global_org_name: goItem.global_org_name,
                 global_acronym: goItem.global_acronym,
-                mappings: [mapping]
+                mappings: [mapping]  // mapping can be null for GOs without mappings
             });
         }
         return acc;
@@ -277,7 +291,7 @@ function MappingDashboard() {
                             ) : (
                                 groupedPageData.map((goItem) => (
                                     goItem.mappings.map((mapping, idx) => (
-                                        <tr key={`${goItem.global_org_id}-${mapping.instance_org_id || idx}`}>
+                                        <tr key={`${goItem.global_org_id}-${mapping ? mapping.instance_org_id || idx : idx}`}>
                                             {idx === 0 && (
                                                 <>
                                                     <td
@@ -300,25 +314,35 @@ function MappingDashboard() {
                                                     </td>
                                                 </>
                                             )}
-                                            <td>{mapping.instance_org_name}</td>
-                                            <td>{mapping.instance_org_acronym || '—'}</td>
-                                            <td>{mapping.instance_org_id || '—'}</td>
-                                            <td>{mapping.parent_instance_org_id || 'NULL'}</td>
-                                            <td className={getRiskClass(mapping.match_percent)}>
-                                                {mapping.match_percent !== null
-                                                    ? `${mapping.match_percent.toFixed(0)}%`
-                                                    : '—'}
-                                            </td>
-                                            <td className={getRiskClass(mapping.match_percent)}>
-                                                {getRiskLevel(mapping.risk_level)}
-                                            </td>
-                                            <td>{mapping.fund_id || '—'}</td>
-                                            <td>{mapping.fund_name || '—'}</td>
-                                            <td>
-                                                <span className={`status-badge status-${(mapping.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
-                                                    {mapping.status || '—'}
-                                                </span>
-                                            </td>
+                                            {mapping ? (
+                                                <>
+                                                    <td>{mapping.instance_org_name}</td>
+                                                    <td>{mapping.instance_org_acronym || '—'}</td>
+                                                    <td>{mapping.instance_org_id || '—'}</td>
+                                                    <td>{mapping.parent_instance_org_id || 'NULL'}</td>
+                                                    <td className={getRiskClass(mapping.match_percent)}>
+                                                        {mapping.match_percent !== null
+                                                            ? `${mapping.match_percent.toFixed(0)}%`
+                                                            : '—'}
+                                                    </td>
+                                                    <td className={getRiskClass(mapping.match_percent)}>
+                                                        {getRiskLevel(mapping.risk_level)}
+                                                    </td>
+                                                    <td>{mapping.fund_id || '—'}</td>
+                                                    <td>{mapping.fund_name || '—'}</td>
+                                                    <td>
+                                                        <span className={`status-badge status-${(mapping.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                                                            {mapping.status || '—'}
+                                                        </span>
+                                                    </td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td colSpan="9" className="no-data" style={{textAlign: 'center', fontStyle: 'italic', color: '#999'}}>
+                                                        No mappings available for this Global Organization
+                                                    </td>
+                                                </>
+                                            )}
                                         </tr>
                                     ))
                                 ))
@@ -332,7 +356,10 @@ function MappingDashboard() {
                     <div className='pagination-container'>
                         <div className='pagination-info'>
                             <span>
-                                Showing {startIndex + 1} to {Math.min(endIndex, totalRecords)} of {totalRecords} records
+                                Showing {startIndex + 1} to {Math.min(endIndex, totalRecords)} of {totalRecords} rows
+                                <span style={{color: '#999', marginLeft: '8px'}}>
+                                    ({realMappingRecords} real mappings)
+                                </span>
                             </span>
                         </div>
 
@@ -417,7 +444,12 @@ function MappingDashboard() {
 
                 <div className='summary-footer'>
                     <p>Total: <strong>{filteredData.length}</strong> global organizations，
-                        <strong>{totalRecords}</strong> mapping records
+                        <strong>{realMappingRecords}</strong> real mapping records
+                        {totalRecords !== realMappingRecords && (
+                            <span style={{color: '#999', fontSize: '0.9rem', marginLeft: '10px'}}>
+                                ({totalRecords - realMappingRecords} GOs without mappings)
+                            </span>
+                        )}
                     </p>
                 </div>
             </div>
