@@ -1,0 +1,286 @@
+/* ============================================
+   Summary Statistics
+============================================ */
+.summary-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.stat-box {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    text-align: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease;
+}
+
+.stat-box:hover {
+    transform: translateY(-5px);
+}
+
+.stat-box.warning {
+    border-left: 5px solid #f39c12;
+}
+
+.stat-box.success {
+    border-left: 5px solid #27ae60;
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #667eea;
+    margin-bottom: 10px;
+}
+
+.stat-box.warning .stat-number {
+    color: #f39c12;
+}
+
+.stat-box.success .stat-number {
+    color: #27ae60;
+}
+
+.stat-label {
+    font-size: 0.95rem;
+    color: #666;
+    font-weight: 500;
+}
+
+/* ============================================
+   Section Styles
+============================================ */
+.section {
+    margin-bottom: 30px;
+}
+
+.section-title {
+    color: white;
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* ============================================
+   Group Cards
+============================================ */
+.groups-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.group-card {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.group-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.group-header {
+    background: linear-gradient(135deg, #fff9e6 0%, #fff4d6 100%);
+    border-left: 5px solid #f39c12;
+    padding: 20px;
+    cursor: pointer;
+    transition: background 0.3s ease;
+}
+
+.group-header:hover {
+    background: linear-gradient(135deg, #fff4d6 0%, #ffefc2 100%);
+}
+
+.group-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+.group-icon {
+    font-size: 1rem;
+    color: #f39c12;
+    transition: transform 0.3s ease;
+}
+
+.group-name {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #333;
+}
+
+.group-meta {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.meta-item {
+    font-weight: 500;
+}
+
+.recommended-info {
+    font-size: 0.95rem;
+    color: #f39c12;
+    font-weight: 600;
+}
+
+/* ============================================
+   Group Details
+============================================ */
+.group-details {
+    padding: 20px;
+    background: white;
+    border-top: 2px solid #f0f0f0;
+    animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        max-height: 1000px;
+    }
+}
+
+.members-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.members-table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.members-table th {
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+}
+
+.members-table tbody tr {
+    border-bottom: 1px solid #e0e0e0;
+    transition: background 0.3s ease;
+}
+
+.members-table tbody tr:hover {
+    background: #f8f9fc;
+}
+
+.members-table tbody tr.recommended {
+    background: linear-gradient(90deg, #fff9e6 0%, #fffaed 100%);
+}
+
+.members-table td {
+    padding: 12px;
+    font-size: 0.9rem;
+}
+
+.status-badge.master {
+    background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+    color: white;
+}
+
+.status-badge.merge {
+    background: #e0e0e0;
+    color: #666;
+}
+
+.action-btn {
+    padding: 6px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* ============================================
+   Unique Organizations
+============================================ */
+.unique-list {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.unique-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 12px;
+    border-bottom: 1px solid #e0e0e0;
+    transition: background 0.3s ease;
+}
+
+.unique-item:last-child {
+    border-bottom: none;
+}
+
+.unique-item:hover {
+    background: #f8f9fc;
+}
+
+.unique-id {
+    font-weight: 700;
+    color: #667eea;
+    min-width: 40px;
+}
+
+/* ============================================
+   Responsive Design
+============================================ */
+@media (max-width: 768px) {
+    .summary-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .group-title {
+        flex-wrap: wrap;
+    }
+
+    .group-meta {
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .members-table {
+        font-size: 0.8rem;
+    }
+
+    .members-table th,
+    .members-table td {
+        padding: 8px 6px;
+    }
+
+    .unique-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+

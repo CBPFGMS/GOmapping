@@ -1,5 +1,5 @@
 /* ============================================
-   Org Mappings container
+   Container and layout
 ============================================ */
 .org-mappings-container {
     width: 100%;
@@ -11,27 +11,62 @@
 }
 
 .org-mappings-content {
-    max-width: 1400px;
+    max-width: 1600px;
     margin: 0 auto;
     padding: 30px;
 }
 
 .mappings-header {
-    color: white;
+    text-align: center;
     margin-bottom: 30px;
+    color: white;
+    position: relative;
+}
+
+.back-button {
+    position: absolute;
+    left: 0;
+    top: 10px;
+    padding: 10px 20px;
+    background: rgba(255, 255, 255, 0.95);
+    color: #667eea;
+    border: none;
+    border-radius: 20px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.back-button:hover {
+    background: white;
+    transform: translateX(-3px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
 }
 
 .mappings-header h1 {
-    font-size: 2rem;
+    font-size: 2.5rem;
     font-weight: 700;
     margin-bottom: 10px;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .mappings-header h2 {
-    font-size: 1.5rem;
+    font-size: 1.8rem;
     font-weight: 600;
+    margin-bottom: 10px;
     opacity: 0.95;
+}
+
+.go-meta {
+    font-size: 1rem;
+    opacity: 0.9;
+    margin-top: 8px;
+}
+
+.go-meta span {
+    margin: 0 10px;
 }
 
 /* ============================================
@@ -41,7 +76,6 @@
     background: white;
     border-radius: 16px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    overflow: hidden;
     overflow-x: auto;
     animation: fadeIn 0.6s ease-in;
     padding-bottom: 2px;
@@ -98,6 +132,7 @@
     letter-spacing: 0.5px;
     font-size: 0.85rem;
     border-bottom: 3px solid #5568d3;
+    white-space: nowrap;
 }
 
 .mappings-table tbody tr {
@@ -120,60 +155,106 @@
     color: #333;
 }
 
-.mappings-table td:first-child {
-    font-weight: 600;
-    color: #667eea;
+/* Group head cells (Global Org columns with rowspan) */
+.group-head {
+    background: #dde7ff !important;
+    font-weight: bold;
+    color: #333 !important;
+    vertical-align: middle;
+    border-right: 2px solid #bbc8f0;
 }
 
-.mappings-table .org-name {
-    font-weight: 500;
-    color: #2c3e50;
-}
-
-/* Similarity color coding */
-.similarity-high {
-    color: #27ae60;
-    font-weight: 700;
-    font-size: 1.05rem;
-}
-
-.similarity-medium {
-    color: #f39c12;
-    font-weight: 600;
-}
-
-.similarity-low {
-    color: #e74c3c;
-    font-weight: 600;
-}
-
-.similarity-none {
-    color: #95a5a6;
+/* No data message */
+.no-data {
+    text-align: center;
+    color: #999;
     font-style: italic;
+    padding: 40px !important;
 }
 
 /* ============================================
-   Back button
+   Risk level color coding (Match%)
 ============================================ */
-.back-btn {
-    margin-top: 30px;
-    cursor: pointer;
-    color: #667eea;
-    font-weight: 600;
-    font-size: 1.1rem;
-    display: inline-block;
-    padding: 12px 24px;
-    border-radius: 8px;
-    background: white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transition: all 0.3s ease;
+.risk-low {
+    background: #c9f7c4;
+    color: #0d6a00;
+    font-weight: bold;
+    text-align: center;
 }
 
-.back-btn:hover {
-    background: #667eea;
-    color: white;
-    transform: translateX(-5px);
-    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.4);
+.risk-medium {
+    background: #ffeab3;
+    color: #8a5600;
+    font-weight: 600;
+    text-align: center;
+}
+
+.risk-high {
+    background: #ffc6c6;
+    color: #a30000;
+    font-weight: bold;
+    text-align: center;
+}
+
+.risk-none {
+    color: #95a5a6;
+    text-align: center;
+}
+
+/* ============================================
+   Status badges
+============================================ */
+.status-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.status-approved {
+    background: #c9f7c4;
+    color: #0d6a00;
+}
+
+.status-pending {
+    background: #fff4cc;
+    color: #b8860b;
+}
+
+.status-under-review {
+    background: #ffeab3;
+    color: #8a5600;
+}
+
+.status-disenrolled {
+    background: #ffc6c6;
+    color: #a30000;
+}
+
+/* ============================================
+   Summary footer
+============================================ */
+.summary-footer {
+    margin-top: 20px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    text-align: center;
+    color: #333;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.summary-footer p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.summary-footer strong {
+    color: #667eea;
+    font-size: 1.1rem;
 }
 
 /* ============================================
@@ -229,17 +310,23 @@
 /* ============================================
    Responsive design
 ============================================ */
+@media (max-width: 1200px) {
+    .org-mappings-content {
+        padding: 20px;
+    }
+}
+
 @media (max-width: 768px) {
-    .org-mappings-container {
+    .org-mappings-content {
         padding: 15px;
     }
 
     .mappings-header h1 {
-        font-size: 1.5rem;
+        font-size: 1.8rem;
     }
 
     .mappings-header h2 {
-        font-size: 1.2rem;
+        font-size: 1.3rem;
     }
 
     .mappings-table {
@@ -254,5 +341,11 @@
     .table-wrapper {
         overflow-x: auto;
     }
-}
 
+    .back-button {
+        position: static;
+        margin-bottom: 15px;
+        display: block;
+        width: fit-content;
+    }
+}

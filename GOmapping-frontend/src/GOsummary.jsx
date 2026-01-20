@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import './GOSummary.css';
+import './GOSummary_grouped.css';
 
 function GOsummary() {
-    const [data, setData] = useState([]);
+    const [duplicateGroups, setDuplicateGroups] = useState([]);
+    const [uniqueOrgs, setUniqueOrgs] = useState([]);
+    const [summary, setSummary] = useState({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [expandedGroups, setExpandedGroups] = useState(new Set());
     const navigate = useNavigate();
 
     // Pagination state
@@ -14,7 +18,8 @@ function GOsummary() {
     const [jumpToPage, setJumpToPage] = useState('');
 
     useEffect(() => {
-        fetch('http://localhost:8000/go-summary/')
+        const timestamp = new Date().getTime();
+        fetch(`http://localhost:8000/go-summary/?_t=${timestamp}`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error('fail to connect server');
@@ -22,7 +27,9 @@ function GOsummary() {
                 return response.json();
             })
             .then(jsonData => {
-                setData(jsonData);
+                setDuplicateGroups(jsonData.duplicate_groups || []);
+                setUniqueOrgs(jsonData.unique_organizations || []);
+                setSummary(jsonData.summary || {});
                 setLoading(false);
             })
             .catch(err => {
@@ -31,12 +38,23 @@ function GOsummary() {
             });
     }, []);
 
+    // Toggle group expansion
+    const toggleGroup = (groupId) => {
+        const newExpanded = new Set(expandedGroups);
+        if (newExpanded.has(groupId)) {
+            newExpanded.delete(groupId);
+        } else {
+            newExpanded.add(groupId);
+        }
+        setExpandedGroups(newExpanded);
+    };
+
     // Similarity style class
     const getSimilarityClass = (percent) => {
         if (percent === null) return 'similarity-none';
-        if (percent >= 85) return 'similarity-high';
-        if (percent >= 70) return 'similarity-medium';
-        return 'similarity-low';
+        if (percent >= 85) return 'similarity-very-high';
+        if (percent >= 70) return 'similarity-high';
+        return 'similarity-medium';
     };
 
     //  GO Detail page
@@ -49,37 +67,6 @@ function GOsummary() {
         navigate(`/org-mappings/${goId}`);
     };
 
-    // Calculate pagination
-    const totalRecords = data.length;
-    const totalPages = Math.ceil(totalRecords / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const currentPageData = data.slice(startIndex, endIndex);
-
-    // Pagination control functions
-    const handlePageChange = (page) => {
-        if (page >= 1 && page <= totalPages) {
-            setCurrentPage(page);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    };
-
-    const handleItemsPerPageChange = (e) => {
-        const newItemsPerPage = parseInt(e.target.value);
-        setItemsPerPage(newItemsPerPage);
-        setCurrentPage(1); // Reset to first page
-    };
-
-    const handleJumpToPage = () => {
-        const page = parseInt(jumpToPage);
-        if (page >= 1 && page <= totalPages) {
-            setCurrentPage(page);
-            setJumpToPage('');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        } else {
-            alert(`Please enter a page number between 1 and ${totalPages}`);
-        }
-    };
 
 
     if (loading) {
@@ -111,133 +98,144 @@ function GOsummary() {
                     </button>
                 </div>
 
-                <div className='table-wrapper'>
-                    <table className="gotable">
-                        <thead>
-                            <tr>
-                                <th>Global_OrgId</th>
-                                <th>Global_OrgName</th>
-                                <th>Usage Count</th>
-                                <th>Most Similar GO</th>
-                                <th>Similarity (%)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {currentPageData.map((row) => (
-                                <tr key={row.global_org_id}>
-                                    <td>{row.global_org_id}</td>
-                                    <td>
-                                        <span
-                                            className='link-text'
-                                            onClick={() => handleGONameClick(row.global_org_id)}
-                                        >
-                                            {row.global_org_name}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <span
-                                            className='usage-badge clickable'
-                                            onClick={() => handleUsageCountClick(row.global_org_id)}
-                                        >
-                                            {row.usage_count}
-                                        </span>
-                                    </td>
-                                    <td>{row.most_similar_go || '—'}</td>
-                                    <td className={getSimilarityClass(row.similarity_percent)}>
-                                        {row.similarity_percent !== null
-                                            ? `${row.similarity_percent}%`
-                                            : '—'}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                {/* Summary Statistics */}
+                <div className='summary-stats'>
+                    <div className='stat-box'>
+                        <div className='stat-number'>{summary.total_organizations || 0}</div>
+                        <div className='stat-label'>Total Global Organizations</div>
+                    </div>
+                    <div className='stat-box warning'>
+                        <div className='stat-number'>{summary.duplicate_groups_count || 0}</div>
+                        <div className='stat-label'>Duplicate Groups</div>
+                    </div>
+                    <div className='stat-box success'>
+                        <div className='stat-number'>{summary.unique_count || 0}</div>
+                        <div className='stat-label'>Unique Global Organizations</div>
+                    </div>
                 </div>
 
-                {/* Pagination controls */}
-                {totalRecords > 0 && (
-                    <div className='pagination-container'>
-                        <div className='pagination-info'>
-                            <span>
-                                Showing {startIndex + 1} to {Math.min(endIndex, totalRecords)} of {totalRecords} records
-                            </span>
+                {/* Duplicate Groups */}
+                {duplicateGroups.length > 0 && (
+                    <div className='section'>
+                        <h2 className='section-title'>
+                            🔄 Duplicate Groups ({duplicateGroups.length})
+                        </h2>
+                        <div className='groups-list'>
+                            {duplicateGroups.map((group) => (
+                                <div key={group.group_id} className='group-card'>
+                                    <div
+                                        className='group-header'
+                                        onClick={() => toggleGroup(group.group_id)}
+                                    >
+                                        <div className='group-title'>
+                                            <span className='group-icon'>
+                                                {expandedGroups.has(group.group_id) ? '▼' : '▶'}
+                                            </span>
+                                            <span className='group-name'>{group.group_name}</span>
+                                            <span className={`similarity-badge ${getSimilarityClass(group.max_similarity)}`}>
+                                                {group.max_similarity.toFixed(1)}% similar
+                                            </span>
+                                        </div>
+                                        <div className='group-meta'>
+                                            <span className='meta-item'>
+                                                {group.total_members} members
+                                            </span>
+                                            <span className='meta-item'>
+                                                {group.total_instances} instances
+                                            </span>
+                                        </div>
+                                        <div className='recommended-info'>
+                                            ⭐ Recommended: {group.recommended_master.global_org_name}
+                                        </div>
+                                    </div>
+
+                                    {expandedGroups.has(group.group_id) && (
+                                        <div className='group-details'>
+                                            <table className='members-table'>
+                                                <thead>
+                                                    <tr>
+                                                        <th>Status</th>
+                                                        <th>GO ID</th>
+                                                        <th>Organization Name</th>
+                                                        <th>Usage Count</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {group.members.map((member) => (
+                                                        <tr
+                                                            key={member.global_org_id}
+                                                            className={member.is_recommended ? 'recommended' : ''}
+                                                        >
+                                                            <td>
+                                                                {member.is_recommended ? (
+                                                                    <span className='status-badge master'>⭐ KEEP</span>
+                                                                ) : (
+                                                                    <span className='status-badge merge'>MERGE</span>
+                                                                )}
+                                                            </td>
+                                                            <td>{member.global_org_id}</td>
+                                                            <td>
+                                                                <span
+                                                                    className='link-text'
+                                                                    onClick={() => handleGONameClick(member.global_org_id)}
+                                                                >
+                                                                    {member.global_org_name}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <span
+                                                                    className='usage-badge clickable'
+                                                                    onClick={() => handleUsageCountClick(member.global_org_id)}
+                                                                >
+                                                                    {member.usage_count}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <button
+                                                                    className='action-btn'
+                                                                    onClick={() => handleUsageCountClick(member.global_org_id)}
+                                                                    title="View all instance organizations mapped to this GO"
+                                                                >
+                                                                    View Mappings
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                         </div>
+                    </div>
+                )}
 
-                        <div className='pagination-controls'>
-                            {/* Items per page selection */}
-                            <div className='items-per-page'>
-                                <label>Items per page:</label>
-                                <select
-                                    value={itemsPerPage}
-                                    onChange={handleItemsPerPageChange}
-                                    className='page-select'
-                                >
-                                    <option value={10}>10</option>
-                                    <option value={15}>15</option>
-                                    <option value={20}>20</option>
-                                    <option value={30}>30</option>
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                </select>
-                            </div>
-
-                            {/* Page navigation buttons */}
-                            <div className='page-buttons'>
-                                <button
-                                    onClick={() => handlePageChange(1)}
-                                    disabled={currentPage === 1}
-                                    className='page-btn'
-                                >
-                                    ««
-                                </button>
-                                <button
-                                    onClick={() => handlePageChange(currentPage - 1)}
-                                    disabled={currentPage === 1}
-                                    className='page-btn'
-                                >
-                                    ‹
-                                </button>
-
-                                <span className='page-info'>
-                                    Page {currentPage} of {totalPages}
-                                </span>
-
-                                <button
-                                    onClick={() => handlePageChange(currentPage + 1)}
-                                    disabled={currentPage === totalPages}
-                                    className='page-btn'
-                                >
-                                    ›
-                                </button>
-                                <button
-                                    onClick={() => handlePageChange(totalPages)}
-                                    disabled={currentPage === totalPages}
-                                    className='page-btn'
-                                >
-                                    »»
-                                </button>
-                            </div>
-
-                            {/* Jump to specific page */}
-                            <div className='jump-to-page'>
-                                <label>Go to page:</label>
-                                <input
-                                    type='number'
-                                    min='1'
-                                    max={totalPages}
-                                    value={jumpToPage}
-                                    onChange={(e) => setJumpToPage(e.target.value)}
-                                    onKeyPress={(e) => e.key === 'Enter' && handleJumpToPage()}
-                                    className='page-input'
-                                    placeholder='#'
-                                />
-                                <button
-                                    onClick={handleJumpToPage}
-                                    className='page-btn jump-btn'
-                                >
-                                    Go
-                                </button>
-                            </div>
+                {/* Unique Organizations */}
+                {uniqueOrgs.length > 0 && (
+                    <div className='section'>
+                        <h2 className='section-title'>
+                            ✅ Unique Global Organizations ({uniqueOrgs.length})
+                        </h2>
+                        <div className='unique-list'>
+                            {uniqueOrgs.map((org) => (
+                                <div key={org.global_org_id} className='unique-item'>
+                                    <span className='unique-id'>{org.global_org_id}</span>
+                                    <span
+                                        className='link-text'
+                                        onClick={() => handleGONameClick(org.global_org_id)}
+                                    >
+                                        {org.global_org_name}
+                                    </span>
+                                    <span
+                                        className='usage-badge clickable'
+                                        onClick={() => handleUsageCountClick(org.global_org_id)}
+                                    >
+                                        {org.usage_count}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
