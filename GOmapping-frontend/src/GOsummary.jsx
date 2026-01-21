@@ -10,6 +10,7 @@ function GOsummary() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [expandedGroups, setExpandedGroups] = useState(new Set());
+    const [expandedUniqueOrgs, setExpandedUniqueOrgs] = useState(new Set());
     const navigate = useNavigate();
 
     // Pagination state
@@ -49,12 +50,55 @@ function GOsummary() {
         setExpandedGroups(newExpanded);
     };
 
+    // Expand/Collapse all duplicate groups
+    const toggleAllGroups = () => {
+        if (expandedGroups.size === duplicateGroups.length) {
+            // All expanded - collapse all
+            setExpandedGroups(new Set());
+        } else {
+            // Some or none expanded - expand all
+            const allGroupIds = duplicateGroups.map(g => g.group_id);
+            setExpandedGroups(new Set(allGroupIds));
+        }
+    };
+
+    // Toggle unique org expansion
+    const toggleUniqueOrg = (orgId) => {
+        const newExpanded = new Set(expandedUniqueOrgs);
+        if (newExpanded.has(orgId)) {
+            newExpanded.delete(orgId);
+        } else {
+            newExpanded.add(orgId);
+        }
+        setExpandedUniqueOrgs(newExpanded);
+    };
+
+    // Expand/Collapse all unique organizations
+    const toggleAllUniqueOrgs = () => {
+        if (expandedUniqueOrgs.size === uniqueOrgs.length) {
+            // All expanded - collapse all
+            setExpandedUniqueOrgs(new Set());
+        } else {
+            // Some or none expanded - expand all
+            const allOrgIds = uniqueOrgs.map(org => org.global_org_id);
+            setExpandedUniqueOrgs(new Set(allOrgIds));
+        }
+    };
+
     // Similarity style class
     const getSimilarityClass = (percent) => {
         if (percent === null) return 'similarity-none';
         if (percent >= 85) return 'similarity-very-high';
         if (percent >= 70) return 'similarity-high';
         return 'similarity-medium';
+    };
+
+    // Match percentage style class
+    const getMatchClass = (percent) => {
+        if (percent === null || percent === undefined) return 'match-none';
+        if (percent >= 85) return 'match-high';
+        if (percent >= 60) return 'match-medium';
+        return 'match-low';
     };
 
     //  GO Detail page
@@ -117,9 +161,17 @@ function GOsummary() {
                 {/* Duplicate Groups */}
                 {duplicateGroups.length > 0 && (
                     <div className='section'>
-                        <h2 className='section-title'>
-                            🔄 Duplicate Groups ({duplicateGroups.length})
-                        </h2>
+                        <div className='section-header'>
+                            <h2 className='section-title'>
+                                🔄 Duplicate Groups ({duplicateGroups.length})
+                            </h2>
+                            <button
+                                className='expand-all-btn'
+                                onClick={toggleAllGroups}
+                            >
+                                {expandedGroups.size === duplicateGroups.length ? '📕 Collapse All' : '📖 Expand All'}
+                            </button>
+                        </div>
                         <div className='groups-list'>
                             {duplicateGroups.map((group) => (
                                 <div key={group.group_id} className='group-card'>
@@ -151,59 +203,63 @@ function GOsummary() {
 
                                     {expandedGroups.has(group.group_id) && (
                                         <div className='group-details'>
-                                            <table className='members-table'>
-                                                <thead>
-                                                    <tr>
-                                                        <th>Status</th>
-                                                        <th>GO ID</th>
-                                                        <th>Organization Name</th>
-                                                        <th>Usage Count</th>
-                                                        <th>Actions</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {group.members.map((member) => (
-                                                        <tr
-                                                            key={member.global_org_id}
-                                                            className={member.is_recommended ? 'recommended' : ''}
-                                                        >
-                                                            <td>
-                                                                {member.is_recommended ? (
-                                                                    <span className='status-badge master'>⭐ KEEP</span>
-                                                                ) : (
-                                                                    <span className='status-badge merge'>MERGE</span>
+                                            <div className='tree-structure'>
+                                                {group.members.map((member) => (
+                                                    <div key={member.global_org_id} className='tree-node'>
+                                                        <div className='tree-node-header'>
+                                                            {member.is_recommended ? (
+                                                                <span className='status-badge master'>⭐ KEEP</span>
+                                                            ) : (
+                                                                <span className='status-badge merge'>MERGE</span>
+                                                            )}
+                                                            <span className='tree-node-id'>#{member.global_org_id}</span>
+                                                            <span
+                                                                className='tree-node-name link-text'
+                                                                onClick={() => handleGONameClick(member.global_org_id)}
+                                                            >
+                                                                {member.global_org_name}
+                                                            </span>
+                                                            <span
+                                                                className='usage-badge clickable'
+                                                                onClick={() => handleUsageCountClick(member.global_org_id)}
+                                                                title="View all mappings"
+                                                            >
+                                                                {member.usage_count} instances
+                                                            </span>
+                                                        </div>
+                                                        {member.instance_organizations && member.instance_organizations.length > 0 && (
+                                                            <div className='tree-children'>
+                                                                {member.instance_organizations.map((inst, idx) => (
+                                                                    <div key={inst.instance_org_id || idx} className='tree-child'>
+                                                                        <span className='tree-branch'>└─</span>
+                                                                        <span className='inst-org-id'>#{inst.instance_org_id}</span>
+                                                                        <span className='inst-org-name'>{inst.instance_org_name}</span>
+                                                                        {inst.instance_org_acronym && (
+                                                                            <span className='inst-org-acronym'>({inst.instance_org_acronym})</span>
+                                                                        )}
+                                                                        <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
+                                                                            {inst.match_percent !== null && inst.match_percent !== undefined
+                                                                                ? `${Math.round(inst.match_percent)}%`
+                                                                                : '—'}
+                                                                        </span>
+                                                                    </div>
+                                                                ))}
+                                                                {member.usage_count > member.instance_organizations.length && (
+                                                                    <div className='tree-child more-items'>
+                                                                        <span className='tree-branch'>└─</span>
+                                                                        <span
+                                                                            className='link-text'
+                                                                            onClick={() => handleUsageCountClick(member.global_org_id)}
+                                                                        >
+                                                                            ... and {member.usage_count - member.instance_organizations.length} more
+                                                                        </span>
+                                                                    </div>
                                                                 )}
-                                                            </td>
-                                                            <td>{member.global_org_id}</td>
-                                                            <td>
-                                                                <span
-                                                                    className='link-text'
-                                                                    onClick={() => handleGONameClick(member.global_org_id)}
-                                                                >
-                                                                    {member.global_org_name}
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                <span
-                                                                    className='usage-badge clickable'
-                                                                    onClick={() => handleUsageCountClick(member.global_org_id)}
-                                                                >
-                                                                    {member.usage_count}
-                                                                </span>
-                                                            </td>
-                                                            <td>
-                                                                <button
-                                                                    className='action-btn'
-                                                                    onClick={() => handleUsageCountClick(member.global_org_id)}
-                                                                    title="View all instance organizations mapped to this GO"
-                                                                >
-                                                                    View Mappings
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
                                 </div>
@@ -215,25 +271,80 @@ function GOsummary() {
                 {/* Unique Organizations */}
                 {uniqueOrgs.length > 0 && (
                     <div className='section'>
-                        <h2 className='section-title'>
-                            ✅ Unique Global Organizations ({uniqueOrgs.length})
-                        </h2>
+                        <div className='section-header'>
+                            <h2 className='section-title'>
+                                ✅ Unique Global Organizations ({uniqueOrgs.length})
+                            </h2>
+                            <button
+                                className='expand-all-btn'
+                                onClick={toggleAllUniqueOrgs}
+                            >
+                                {expandedUniqueOrgs.size === uniqueOrgs.length ? '📕 Collapse All' : '📖 Expand All'}
+                            </button>
+                        </div>
                         <div className='unique-list'>
                             {uniqueOrgs.map((org) => (
-                                <div key={org.global_org_id} className='unique-item'>
-                                    <span className='unique-id'>{org.global_org_id}</span>
-                                    <span
-                                        className='link-text'
-                                        onClick={() => handleGONameClick(org.global_org_id)}
+                                <div key={org.global_org_id} className='unique-org-card'>
+                                    <div
+                                        className='unique-org-header'
+                                        onClick={() => toggleUniqueOrg(org.global_org_id)}
                                     >
-                                        {org.global_org_name}
-                                    </span>
-                                    <span
-                                        className='usage-badge clickable'
-                                        onClick={() => handleUsageCountClick(org.global_org_id)}
-                                    >
-                                        {org.usage_count}
-                                    </span>
+                                        <span className='unique-org-icon'>
+                                            {expandedUniqueOrgs.has(org.global_org_id) ? '▼' : '▶'}
+                                        </span>
+                                        <span className='unique-id'>#{org.global_org_id}</span>
+                                        <span
+                                            className='link-text'
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleGONameClick(org.global_org_id);
+                                            }}
+                                        >
+                                            {org.global_org_name}
+                                        </span>
+                                        <span
+                                            className='usage-badge clickable'
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleUsageCountClick(org.global_org_id);
+                                            }}
+                                            title="View all mappings"
+                                        >
+                                            {org.usage_count} instances
+                                        </span>
+                                    </div>
+                                    {expandedUniqueOrgs.has(org.global_org_id) && org.instance_organizations && org.instance_organizations.length > 0 && (
+                                        <div className='unique-org-details'>
+                                            <div className='tree-children'>
+                                                {org.instance_organizations.map((inst, idx) => (
+                                                    <div key={inst.instance_org_id || idx} className='tree-child'>
+                                                        <span className='tree-branch'>└─</span>
+                                                        <span className='inst-org-id'>#{inst.instance_org_id}</span>
+                                                        <span className='inst-org-name'>{inst.instance_org_name}</span>
+                                                        {inst.instance_org_acronym && (
+                                                            <span className='inst-org-acronym'>({inst.instance_org_acronym})</span>
+                                                        )}
+                                                        <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
+                                                            {inst.match_percent !== null && inst.match_percent !== undefined
+                                                                ? `${Math.round(inst.match_percent)}%`
+                                                                : '—'}
+                                                        </span>
+                                                    </div>
+                                                ))}
+                                                {org.usage_count > org.instance_organizations.length && (
+                                                    <div className='tree-child more-items'>
+                                                        <span className='tree-branch'>└─</span>
+                                                        <span
+                                                            className='link-text'
+                                                            onClick={() => handleUsageCountClick(org.global_org_id)}
+                                                        >
+                                                            ... and {org.usage_count - org.instance_organizations.length} more
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

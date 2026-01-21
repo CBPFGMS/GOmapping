@@ -203,11 +203,24 @@ def go_summary(request):
         for go in go_list:
             usage = go.usage_count or 0
             total_instances += usage
+            
+            # Get instance organizations for this GO
+            instance_orgs = OrgMapping.objects.filter(
+                global_org_id=go.global_org_id
+            ).values(
+                'instance_org_id',
+                'instance_org_name',
+                'instance_org_acronym',
+                'fund_name',
+                'match_percent'
+            )[:20]  # Limit to 20 for performance
+            
             members.append({
                 "global_org_id": go.global_org_id,
                 "global_org_name": go.global_org_name,
                 "usage_count": usage,
-                "name_length": len(go.global_org_name) if go.global_org_name else 0
+                "name_length": len(go.global_org_name) if go.global_org_name else 0,
+                "instance_organizations": list(instance_orgs)
             })
         
         # Recommend master using knowledge base + usage count + name length
@@ -265,10 +278,22 @@ def go_summary(request):
     
     for go in all_gos:
         if go.global_org_id not in grouped_go_ids:
+            # Get instance organizations for this unique GO
+            instance_orgs = OrgMapping.objects.filter(
+                global_org_id=go.global_org_id
+            ).values(
+                'instance_org_id',
+                'instance_org_name',
+                'instance_org_acronym',
+                'fund_name',
+                'match_percent'
+            )[:20]  # Limit to 20 for performance
+            
             unique_organizations.append({
                 "global_org_id": go.global_org_id,
                 "global_org_name": go.global_org_name,
-                "usage_count": go.usage_count or 0
+                "usage_count": go.usage_count or 0,
+                "instance_organizations": list(instance_orgs)
             })
     
     # Sort unique by usage count

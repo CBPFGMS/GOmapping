@@ -253,11 +253,215 @@
 }
 
 /* ============================================
+   Section Header with Expand All Button
+============================================ */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.expand-all-btn {
+    padding: 10px 24px;
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+    border-radius: 25px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.expand-all-btn:hover {
+    background: #667eea;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+/* ============================================
+   Tree Structure Display
+============================================ */
+.tree-structure {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.tree-node {
+    border-left: 3px solid #667eea;
+    padding-left: 15px;
+    margin-bottom: 10px;
+}
+
+.tree-node-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    flex-wrap: wrap;
+}
+
+.tree-node-id {
+    font-weight: 700;
+    color: #667eea;
+    font-size: 0.9rem;
+}
+
+.tree-node-name {
+    font-weight: 600;
+    font-size: 1rem;
+    flex: 1;
+}
+
+.tree-children {
+    margin-top: 10px;
+    margin-left: 20px;
+}
+
+.tree-child {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px dashed #e0e0e0;
+}
+
+.tree-child:last-child {
+    border-bottom: none;
+}
+
+.tree-branch {
+    color: #999;
+    font-weight: bold;
+    font-size: 1.2rem;
+}
+
+.inst-org-id {
+    font-weight: 700;
+    color: #667eea;
+    font-size: 0.85rem;
+    min-width: 60px;
+}
+
+.inst-org-name {
+    font-weight: 500;
+    color: #333;
+}
+
+.inst-org-acronym {
+    color: #666;
+    font-size: 0.9rem;
+    font-style: italic;
+}
+
+.match-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-left: auto;
+    min-width: 45px;
+    text-align: center;
+}
+
+.match-high {
+    background: #c9f7c4;
+    color: #0d6a00;
+}
+
+.match-medium {
+    background: #ffeab3;
+    color: #8a5600;
+}
+
+.match-low {
+    background: #ffc6c6;
+    color: #a30000;
+}
+
+.match-none {
+    background: #e0e0e0;
+    color: #999;
+}
+
+.inst-org-fund {
+    color: #667eea;
+    font-size: 0.85rem;
+    margin-left: auto;
+}
+
+.tree-child.more-items {
+    color: #667eea;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* ============================================
+   Unique Organizations Card Style
+============================================ */
+.unique-org-card {
+    background: white;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    margin-bottom: 15px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.unique-org-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.unique-org-header {
+    background: linear-gradient(135deg, #e8ffe8 0%, #d6ffd6 100%);
+    border-left: 5px solid #27ae60;
+    padding: 15px 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: background 0.3s ease;
+}
+
+.unique-org-header:hover {
+    background: linear-gradient(135deg, #d6ffd6 0%, #c2ffc2 100%);
+}
+
+.unique-org-icon {
+    font-size: 0.9rem;
+    color: #27ae60;
+    transition: transform 0.3s ease;
+}
+
+.unique-org-details {
+    padding: 15px 20px;
+    background: white;
+    border-top: 2px solid #f0f0f0;
+    animation: slideDown 0.3s ease;
+}
+
+/* ============================================
    Responsive Design
 ============================================ */
 @media (max-width: 768px) {
     .summary-stats {
         grid-template-columns: 1fr;
+    }
+
+    .section-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+
+    .expand-all-btn {
+        width: 100%;
     }
 
     .group-title {
@@ -282,5 +486,13 @@
         flex-direction: column;
         align-items: flex-start;
     }
-}
 
+    .tree-node-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .tree-children {
+        margin-left: 10px;
+    }
+}
