@@ -13,10 +13,15 @@ function GOsummary() {
     const [expandedUniqueOrgs, setExpandedUniqueOrgs] = useState(new Set());
     const navigate = useNavigate();
 
-    // Pagination state
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage, setItemsPerPage] = useState(15);
-    const [jumpToPage, setJumpToPage] = useState('');
+    // Pagination state - Duplicate Groups
+    const [dupCurrentPage, setDupCurrentPage] = useState(1);
+    const [dupItemsPerPage, setDupItemsPerPage] = useState(15);
+    const [dupJumpToPage, setDupJumpToPage] = useState('');
+
+    // Pagination state - Unique Orgs
+    const [uniqueCurrentPage, setUniqueCurrentPage] = useState(1);
+    const [uniqueItemsPerPage, setUniqueItemsPerPage] = useState(15);
+    const [uniqueJumpToPage, setUniqueJumpToPage] = useState('');
 
     const fetchData = (forceRefresh = false) => {
         setLoading(true);
@@ -33,6 +38,9 @@ function GOsummary() {
                 setDuplicateGroups(jsonData.duplicate_groups || []);
                 setUniqueOrgs(jsonData.unique_organizations || []);
                 setSummary(jsonData.summary || {});
+                // Reset pagination when new data is loaded
+                setDupCurrentPage(1);
+                setUniqueCurrentPage(1);
                 setLoading(false);
             })
             .catch(err => {
@@ -44,6 +52,130 @@ function GOsummary() {
     useEffect(() => {
         fetchData();
     }, []);
+
+    // ---------- Pagination helpers ----------
+    const clampPage = (page, totalPages) => {
+        if (totalPages <= 0) return 1;
+        if (page < 1) return 1;
+        if (page > totalPages) return totalPages;
+        return page;
+    };
+
+    const PaginationControls = ({
+        totalItems,
+        currentPage,
+        itemsPerPage,
+        setCurrentPage,
+        jumpToPage,
+        setJumpToPage,
+        setItemsPerPage,
+        labelPrefix = 'Items per page'
+    }) => {
+        const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = Math.min(startIndex + itemsPerPage, totalItems);
+
+        const handlePageChange = (page) => {
+            const next = clampPage(page, totalPages);
+            setCurrentPage(next);
+        };
+
+        const handleItemsPerPageChange = (e) => {
+            const next = parseInt(e.target.value, 10);
+            setItemsPerPage(next);
+            setCurrentPage(1);
+        };
+
+        const handleJump = () => {
+            const page = parseInt(jumpToPage, 10);
+            if (!Number.isFinite(page)) return;
+            setCurrentPage(clampPage(page, totalPages));
+            setJumpToPage('');
+        };
+
+        if (totalItems <= 0) return null;
+
+        return (
+            <div className='pagination-container' style={{ marginTop: '15px' }}>
+                <div className='pagination-info'>
+                    <span>
+                        Showing {totalItems === 0 ? 0 : startIndex + 1} to {endIndex} of {totalItems}
+                    </span>
+                </div>
+
+                <div className='pagination-controls'>
+                    <div className='items-per-page'>
+                        <label>{labelPrefix}:</label>
+                        <select
+                            value={itemsPerPage}
+                            onChange={handleItemsPerPageChange}
+                            className='page-select'
+                        >
+                            <option value={10}>10</option>
+                            <option value={15}>15</option>
+                            <option value={20}>20</option>
+                            <option value={30}>30</option>
+                            <option value={50}>50</option>
+                            <option value={100}>100</option>
+                        </select>
+                    </div>
+
+                    <div className='page-buttons'>
+                        <button
+                            onClick={() => handlePageChange(1)}
+                            disabled={currentPage === 1}
+                            className='page-btn'
+                        >
+                            ««
+                        </button>
+                        <button
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1}
+                            className='page-btn'
+                        >
+                            ‹
+                        </button>
+
+                        <span className='page-info'>
+                            Page {currentPage} of {totalPages}
+                        </span>
+
+                        <button
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage === totalPages}
+                            className='page-btn'
+                        >
+                            ›
+                        </button>
+                        <button
+                            onClick={() => handlePageChange(totalPages)}
+                            disabled={currentPage === totalPages}
+                            className='page-btn'
+                        >
+                            »»
+                        </button>
+                    </div>
+
+                    <div className='jump-to-page'>
+                        <label>Go to page:</label>
+                        <input
+                            type='number'
+                            min='1'
+                            max={totalPages}
+                            value={jumpToPage}
+                            onChange={(e) => setJumpToPage(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+                            className='page-input'
+                            placeholder='#'
+                        />
+                        <button onClick={handleJump} className='page-btn jump-btn'>
+                            Go
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     // Toggle group expansion
     const toggleGroup = (groupId) => {
@@ -135,6 +267,17 @@ function GOsummary() {
         );
     }
 
+    // ---------- Apply pagination ----------
+    const dupTotalPages = Math.ceil(duplicateGroups.length / dupItemsPerPage) || 1;
+    const safeDupPage = clampPage(dupCurrentPage, dupTotalPages);
+    const dupStart = (safeDupPage - 1) * dupItemsPerPage;
+    const paginatedDuplicateGroups = duplicateGroups.slice(dupStart, dupStart + dupItemsPerPage);
+
+    const uniqueTotalPages = Math.ceil(uniqueOrgs.length / uniqueItemsPerPage) || 1;
+    const safeUniquePage = clampPage(uniqueCurrentPage, uniqueTotalPages);
+    const uniqueStart = (safeUniquePage - 1) * uniqueItemsPerPage;
+    const paginatedUniqueOrgs = uniqueOrgs.slice(uniqueStart, uniqueStart + uniqueItemsPerPage);
+
     return (
         <div className='go-summary-container'>
             <div className='go-summary-content'>
@@ -188,8 +331,18 @@ function GOsummary() {
                                 {expandedGroups.size === duplicateGroups.length ? '📕 Collapse All' : '📖 Expand All'}
                             </button>
                         </div>
+                        <PaginationControls
+                            totalItems={duplicateGroups.length}
+                            currentPage={safeDupPage}
+                            itemsPerPage={dupItemsPerPage}
+                            setCurrentPage={setDupCurrentPage}
+                            jumpToPage={dupJumpToPage}
+                            setJumpToPage={setDupJumpToPage}
+                            setItemsPerPage={setDupItemsPerPage}
+                            labelPrefix='Groups per page'
+                        />
                         <div className='groups-list'>
-                            {duplicateGroups.map((group) => (
+                            {paginatedDuplicateGroups.map((group) => (
                                 <div key={group.group_id} className='group-card'>
                                     <div
                                         className='group-header'
@@ -298,8 +451,18 @@ function GOsummary() {
                                 {expandedUniqueOrgs.size === uniqueOrgs.length ? '📕 Collapse All' : '📖 Expand All'}
                             </button>
                         </div>
+                        <PaginationControls
+                            totalItems={uniqueOrgs.length}
+                            currentPage={safeUniquePage}
+                            itemsPerPage={uniqueItemsPerPage}
+                            setCurrentPage={setUniqueCurrentPage}
+                            jumpToPage={uniqueJumpToPage}
+                            setJumpToPage={setUniqueJumpToPage}
+                            setItemsPerPage={setUniqueItemsPerPage}
+                            labelPrefix='Orgs per page'
+                        />
                         <div className='unique-list'>
-                            {uniqueOrgs.map((org) => (
+                            {paginatedUniqueOrgs.map((org) => (
                                 <div key={org.global_org_id} className='unique-org-card'>
                                     <div
                                         className='unique-org-header'
