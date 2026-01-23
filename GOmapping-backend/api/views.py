@@ -15,9 +15,19 @@ def go_list(request):
 
 @api_view(["GET"])
 def go_summary(request):
-    # Auto-update usage_count for all Global Organizations
+    from django.core.cache import cache
     from django.db.models import Count
     from organization_knowledge_base import get_recommendation_score
+    
+    # Check if force refresh is requested
+    force_refresh = request.GET.get('refresh', '').lower() == 'true'
+    
+    # Try to get cached result
+    cache_key = 'go_summary_data'
+    if not force_refresh:
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return Response(cached_data)
     
     # Calculate usage count for each GO from org_mapping table
     usage_counts = (
@@ -42,160 +52,61 @@ def go_summary(request):
             global_org_id__in=go_ids_without_mappings
         ).update(usage_count=0)
     
-    # Build grouped data structure - Real-time similarity calculation
-    from difflib import SequenceMatcher
-    import re
+    # Build grouped data structure - Read from pre-calculated go_similarity table
+    # Fetch all similarities from database
+    all_similarities = GoSimilarity.objects.select_related(
+        'source_global_org', 'target_global_org'
+    ).all()
     
-    SIMILARITY_THRESHOLD = 60.0  # Lowered to catch more potential duplicates
-    
-    # Get all GOs for comparison
-    all_gos_for_comparison = GlobalOrganization.objects.all()
-    
-    def normalize_name(name):
-        """Normalize name: lowercase, remove special chars, remove stop words"""
-        if not name:
-            return ""
-        name = name.lower()
-        name = re.sub(r'[^\w\s]', ' ', name)
-        name = re.sub(r'\s+', ' ', name).strip()
-        stop_words = {'the', 'of', 'for', 'and', 'in', 'to', 'a', 'an', 'at', 'on'}
-        words = [w for w in name.split() if w not in stop_words]
-        return ' '.join(words)
-    
-    def calculate_similarity(go1, go2):
-        """Calculate similarity between two GOs"""
-        name1 = go1.global_org_name or ""
-        name2 = go2.global_org_name or ""
-        
-        # Exact match (case-insensitive)
-        if name1.lower() == name2.lower():
-            return 100.0
-        
-        # Normalize names
-        norm1 = normalize_name(name1)
-        norm2 = normalize_name(name2)
-        
-        if not norm1 or not norm2:
-            return 0.0
-        
-        # Sequence similarity
-        seq_sim = SequenceMatcher(None, norm1, norm2).ratio() * 100
-        
-        # Token similarity (Jaccard)
-        tokens1 = set(norm1.split())
-        tokens2 = set(norm2.split())
-        if tokens1 and tokens2:
-            intersection = tokens1.intersection(tokens2)
-            union = tokens1.union(tokens2)
-            token_sim = (len(intersection) / len(union)) * 100 if union else 0
-        else:
-            token_sim = 0
-        
-        # Acronym matching
-        acronym1 = (go1.global_acronym or "").upper()
-        acronym2 = (go2.global_acronym or "").upper()
-        acronym_sim = 100.0 if (acronym1 and acronym2 and acronym1 == acronym2) else 0
-        
-        # Weighted combination
-        if acronym_sim == 100.0:
-            # Perfect acronym match - high base score
-            final_sim = 75.0 + (seq_sim * 0.15) + (token_sim * 0.10)
-        else:
-            final_sim = (seq_sim * 0.5) + (token_sim * 0.3) + (acronym_sim * 0.2)
-        
-        return min(final_sim, 100.0)
-    
-    # Calculate similarities and group
+    # Build similarity graph using Union-Find
     go_groups = {}  # {go_id: group_id}
     groups = {}     # {group_id: set of go_ids}
     next_group_id = 1
     
-    go_list = list(all_gos_for_comparison)
-    for i, go1 in enumerate(go_list):
-        for go2 in go_list[i + 1:]:
-            similarity = calculate_similarity(go1, go2)
-            
-            if similarity >= SIMILARITY_THRESHOLD:
-                source_id = go1.global_org_id
-                target_id = go2.global_org_id
-                
-                source_group = go_groups.get(source_id)
-                target_group = go_groups.get(target_id)
-                
-                if source_group is None and target_group is None:
-                    go_groups[source_id] = next_group_id
-                    go_groups[target_id] = next_group_id
-                    groups[next_group_id] = {source_id, target_id}
-                    next_group_id += 1
-                elif source_group is None:
-                    go_groups[source_id] = target_group
-                    groups[target_group].add(source_id)
-                elif target_group is None:
-                    go_groups[target_id] = source_group
-                    groups[source_group].add(target_id)
-                elif source_group != target_group:
-                    for go_id in groups[target_group]:
-                        go_groups[go_id] = source_group
-                        groups[source_group].add(go_id)
-                    del groups[target_group]
-    
-    # Merge groups with same base name (case-insensitive)
-    # This prevents duplicate groups like "Save The Children" and "Save the Children"
-    name_to_groups = {}  # {normalized_name: [group_ids]}
-    
-    for group_id, go_ids in groups.items():
-        if len(go_ids) < 2:
-            continue
-        # Get representative name
-        sample_go = GlobalOrganization.objects.filter(global_org_id__in=list(go_ids)[:1]).first()
-        if sample_go:
-            base_name = normalize_name(sample_go.global_org_name)
-            # Extract core name (remove country/location)
-            core_name = base_name
-            for suffix in ['international', 'uk', 'jordan', 'yemen', 'foundation', 'somalia', 'ethiopia', 'pakistan', 'syria', 'lebanon', 'iraq', 'afghanistan', 'sudan']:
-                if core_name.endswith(' ' + suffix):
-                    core_name = core_name[:-len(' ' + suffix)]
-                    break
-            
-            if core_name not in name_to_groups:
-                name_to_groups[core_name] = []
-            name_to_groups[core_name].append(group_id)
-    
-    # Merge groups with same core name
-    final_groups = {}
-    next_final_group_id = 1
-    for core_name, group_ids_list in name_to_groups.items():
-        if len(group_ids_list) == 1:
-            # Single group
-            final_groups[next_final_group_id] = groups[group_ids_list[0]]
-        else:
-            # Multiple groups with same core name - merge them
-            merged_ids = set()
-            for gid in group_ids_list:
-                merged_ids.update(groups[gid])
-            final_groups[next_final_group_id] = merged_ids
-        next_final_group_id += 1
+    for similarity in all_similarities:
+        source_id = similarity.source_global_org_id
+        target_id = similarity.target_global_org_id
+        
+        source_group = go_groups.get(source_id)
+        target_group = go_groups.get(target_id)
+        
+        if source_group is None and target_group is None:
+            go_groups[source_id] = next_group_id
+            go_groups[target_id] = next_group_id
+            groups[next_group_id] = {source_id, target_id}
+            next_group_id += 1
+        elif source_group is None:
+            go_groups[source_id] = target_group
+            groups[target_group].add(source_id)
+        elif target_group is None:
+            go_groups[target_id] = source_group
+            groups[source_group].add(target_id)
+        elif source_group != target_group:
+            # Merge groups
+            for go_id in groups[target_group]:
+                go_groups[go_id] = source_group
+                groups[source_group].add(go_id)
+            del groups[target_group]
     
     # Build duplicate groups
     duplicate_groups = []
-    for group_id, go_ids in final_groups.items():
+    for group_id, go_ids in groups.items():
         if len(go_ids) < 2:
             continue
-            
+        
         go_list = GlobalOrganization.objects.filter(global_org_id__in=go_ids)
         
-        # Calculate max similarity within group
+        # Get max similarity within group from database
         max_similarity = 0
-        go_objs = list(go_list)
-        for i, g1 in enumerate(go_objs):
-            if g1.global_org_id not in go_ids:
-                continue
-            for g2 in go_objs[i + 1:]:
-                if g2.global_org_id not in go_ids:
-                    continue
-                sim = calculate_similarity(g1, g2)
-                if sim > max_similarity:
-                    max_similarity = sim
+        for go_id in go_ids:
+            similarities_in_group = GoSimilarity.objects.filter(
+                source_global_org_id=go_id,
+                target_global_org_id__in=go_ids
+            ).values_list('similarity_percent', flat=True)
+            if similarities_in_group:
+                group_max = max(float(s) for s in similarities_in_group if s is not None)
+                if group_max > max_similarity:
+                    max_similarity = group_max
         
         members = []
         total_instances = 0
@@ -299,7 +210,7 @@ def go_summary(request):
     # Sort unique by usage count
     unique_organizations.sort(key=lambda x: -x["usage_count"])
     
-    return Response({
+    response_data = {
         "duplicate_groups": duplicate_groups,
         "unique_organizations": unique_organizations,
         "summary": {
@@ -307,7 +218,12 @@ def go_summary(request):
             "duplicate_groups_count": len(duplicate_groups),
             "unique_count": len(unique_organizations)
         }
-    })
+    }
+    
+    # Cache the result for 10 minutes (600 seconds)
+    cache.set(cache_key, response_data, 600)
+    
+    return Response(response_data)
 
 
 @api_view(["GET"])

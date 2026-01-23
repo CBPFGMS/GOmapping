@@ -18,9 +18,11 @@ function GOsummary() {
     const [itemsPerPage, setItemsPerPage] = useState(15);
     const [jumpToPage, setJumpToPage] = useState('');
 
-    useEffect(() => {
+    const fetchData = (forceRefresh = false) => {
+        setLoading(true);
+        const refreshParam = forceRefresh ? '&refresh=true' : '';
         const timestamp = new Date().getTime();
-        fetch(`http://localhost:8000/go-summary/?_t=${timestamp}`)
+        fetch(`http://localhost:8000/go-summary/?_t=${timestamp}${refreshParam}`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error('fail to connect server');
@@ -37,6 +39,10 @@ function GOsummary() {
                 setError(err.message);
                 setLoading(false);
             });
+    };
+
+    useEffect(() => {
+        fetchData();
     }, []);
 
     // Toggle group expansion
@@ -134,12 +140,22 @@ function GOsummary() {
             <div className='go-summary-content'>
                 <div className='summary-header'>
                     <h1>🌍 Global Organization Mapping Summary</h1>
-                    <button
-                        className='nav-button'
-                        onClick={() => navigate('/mapping-dashboard')}
-                    >
-                        📊 Check Mapping Dashboard
-                    </button>
+                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+                        <button
+                            className='nav-button'
+                            onClick={() => navigate('/mapping-dashboard')}
+                        >
+                            📊 Check Mapping Dashboard
+                        </button>
+                        <button
+                            className='nav-button'
+                            onClick={() => fetchData(true)}
+                            disabled={loading}
+                            style={{ opacity: loading ? 0.6 : 1 }}
+                        >
+                            {loading ? '⏳ Loading...' : '🔄 Refresh Data'}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Summary Statistics */}
