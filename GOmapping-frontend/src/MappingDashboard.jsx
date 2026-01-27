@@ -290,61 +290,70 @@ function MappingDashboard() {
                                 </tr>
                             ) : (
                                 groupedPageData.map((goItem) => (
-                                    goItem.mappings.map((mapping, idx) => (
-                                        <tr key={`${goItem.global_org_id}-${mapping ? mapping.instance_org_id || idx : idx}`}>
-                                            {idx === 0 && (
-                                                <>
-                                                    <td
-                                                        rowSpan={goItem.mappings.length}
-                                                        className='group-head'
-                                                    >
-                                                        {goItem.global_org_name}
-                                                    </td>
-                                                    <td
-                                                        rowSpan={goItem.mappings.length}
-                                                        className='group-head'
-                                                    >
-                                                        {goItem.global_acronym || '—'}
-                                                    </td>
-                                                    <td
-                                                        rowSpan={goItem.mappings.length}
-                                                        className='group-head'
-                                                    >
-                                                        {goItem.global_org_id}
-                                                    </td>
-                                                </>
-                                            )}
-                                            {mapping ? (
-                                                <>
-                                                    <td>{mapping.instance_org_name}</td>
-                                                    <td>{mapping.instance_org_acronym || '—'}</td>
-                                                    <td>{mapping.instance_org_id || '—'}</td>
-                                                    <td>{mapping.parent_instance_org_id || 'NULL'}</td>
-                                                    <td className={getRiskClass(mapping.match_percent)}>
-                                                        {mapping.match_percent !== null
-                                                            ? `${mapping.match_percent.toFixed(0)}%`
-                                                            : '—'}
-                                                    </td>
-                                                    <td className={getRiskClass(mapping.match_percent)}>
-                                                        {getRiskLevel(mapping.risk_level)}
-                                                    </td>
-                                                    <td>{mapping.fund_id || '—'}</td>
-                                                    <td>{mapping.fund_name || '—'}</td>
-                                                    <td>
-                                                        <span className={`status-badge status-${(mapping.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
-                                                            {mapping.status || '—'}
-                                                        </span>
-                                                    </td>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <td colSpan="9" className="no-data" style={{textAlign: 'center', fontStyle: 'italic', color: '#999'}}>
-                                                        No mappings available for this Global Organization
-                                                    </td>
-                                                </>
-                                            )}
-                                        </tr>
-                                    ))
+                                    goItem.mappings.map((mapping, idx) => {
+                                        const isFirstRow = idx === 0;
+                                        const isLastRow = idx === goItem.mappings.length - 1;
+                                        const rowClass = `${isFirstRow ? 'group-first-row' : ''} ${isLastRow ? 'group-last-row' : ''} group-member-row`.trim();
+                                        
+                                        return (
+                                            <tr 
+                                                key={`${goItem.global_org_id}-${mapping ? mapping.instance_org_id || idx : idx}`}
+                                                className={rowClass}
+                                            >
+                                                {idx === 0 && (
+                                                    <>
+                                                        <td
+                                                            rowSpan={goItem.mappings.length}
+                                                            className='group-head'
+                                                        >
+                                                            {goItem.global_org_name}
+                                                        </td>
+                                                        <td
+                                                            rowSpan={goItem.mappings.length}
+                                                            className='group-head'
+                                                        >
+                                                            {goItem.global_acronym || '—'}
+                                                        </td>
+                                                        <td
+                                                            rowSpan={goItem.mappings.length}
+                                                            className='group-head'
+                                                        >
+                                                            {goItem.global_org_id}
+                                                        </td>
+                                                    </>
+                                                )}
+                                                {mapping ? (
+                                                    <>
+                                                        <td>{mapping.instance_org_name}</td>
+                                                        <td>{mapping.instance_org_acronym || '—'}</td>
+                                                        <td>{mapping.instance_org_id || '—'}</td>
+                                                        <td>{mapping.parent_instance_org_id || 'NULL'}</td>
+                                                        <td className={getRiskClass(mapping.match_percent)}>
+                                                            {mapping.match_percent !== null
+                                                                ? `${mapping.match_percent.toFixed(0)}%`
+                                                                : '—'}
+                                                        </td>
+                                                        <td className={getRiskClass(mapping.match_percent)}>
+                                                            {getRiskLevel(mapping.risk_level)}
+                                                        </td>
+                                                        <td>{mapping.fund_id || '—'}</td>
+                                                        <td>{mapping.fund_name || '—'}</td>
+                                                        <td>
+                                                            <span className={`status-badge status-${(mapping.status || '').toLowerCase().replace(/\s+/g, '-')}`}>
+                                                                {mapping.status || '—'}
+                                                            </span>
+                                                        </td>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <td colSpan="9" className="no-data" style={{textAlign: 'center', fontStyle: 'italic', color: '#999'}}>
+                                                            No mappings available for this Global Organization
+                                                        </td>
+                                                    </>
+                                                )}
+                                            </tr>
+                                        );
+                                    })
                                 ))
                             )}
                         </tbody>

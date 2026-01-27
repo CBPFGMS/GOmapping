@@ -253,8 +253,31 @@ function GOsummary() {
 
     if (loading) {
         return (
-            <div className='go-summary-container'>
-                <div className='loading'>loding...</div>
+            <div className='go-summary-container loading-fullscreen'>
+                <div className='loading-card'>
+                    <div className='loading-spinner'></div>
+                    <h2 className='loading-title'>⏳ Processing Data...</h2>
+                    <p className='loading-subtitle'>We're calculating usage counts and analyzing similarities</p>
+                    <div className='loading-steps'>
+                        <div className='loading-step'>
+                            <span className='step-icon'>✓</span>
+                            <span>Fetching global organizations</span>
+                        </div>
+                        <div className='loading-step active'>
+                            <span className='step-icon'>⟳</span>
+                            <span>Calculating usage statistics</span>
+                        </div>
+                        <div className='loading-step'>
+                            <span className='step-icon'>○</span>
+                            <span>Identifying duplicates</span>
+                        </div>
+                        <div className='loading-step'>
+                            <span className='step-icon'>○</span>
+                            <span>Organizing results</span>
+                        </div>
+                    </div>
+                    <p className='loading-note'>This may take a few moments for large datasets...</p>
+                </div>
             </div>
         );
     }
@@ -366,7 +389,7 @@ function GOsummary() {
                                             </span>
                                         </div>
                                         <div className='recommended-info'>
-                                            ⭐ Recommended: {group.recommended_master.global_org_name}
+                                            ⭐ Recommended: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name}
                                         </div>
                                     </div>
 

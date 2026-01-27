@@ -358,35 +358,130 @@
 /* ============================================
    Loading and error states
 ============================================ */
-.loading,
+/* Fullscreen loading background */
+.loading-fullscreen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* Loading card container */
+.loading-card {
+    background: white;
+    border-radius: 24px;
+    padding: 50px 60px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 600px;
+    width: 100%;
+    text-align: center;
+    animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Loading spinner */
+.loading-spinner {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 30px;
+    border: 6px solid #f0f4ff;
+    border-top: 6px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Loading text */
+.loading-title {
+    font-size: 1.8rem;
+    color: #667eea;
+    margin: 0 0 10px 0;
+    font-weight: 700;
+}
+
+.loading-subtitle {
+    font-size: 1rem;
+    color: #666;
+    margin: 0 0 30px 0;
+}
+
+/* Loading steps */
+.loading-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin: 30px 0;
+    text-align: left;
+}
+
+.loading-step {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    background: #f8f9fc;
+    border-radius: 12px;
+    color: #999;
+    font-size: 0.95rem;
+    transition: all 0.3s ease;
+}
+
+.loading-step.active {
+    background: linear-gradient(90deg, #f0f4ff 0%, #e8eeff 100%);
+    color: #667eea;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.loading-step .step-icon {
+    font-size: 1.2rem;
+    min-width: 24px;
+    text-align: center;
+}
+
+.loading-step.active .step-icon {
+    animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-note {
+    font-size: 0.85rem;
+    color: #999;
+    font-style: italic;
+    margin: 20px 0 0 0;
+}
+
+/* Error state */
 .error {
+    background: #fff5f5;
+    color: #e74c3c;
+    border: 2px solid #e74c3c;
+    box-shadow: 0 10px 40px rgba(231, 76, 60, 0.2);
     padding: 60px 20px;
     text-align: center;
     font-size: 1.2rem;
     border-radius: 16px;
     margin: 40px auto;
     max-width: 600px;
-    animation: pulse 1.5s ease-in-out infinite;
-}
-
-.loading {
-    background: white;
-    color: #667eea;
-    box-shadow: 0 10px 40px rgba(102, 126, 234, 0.2);
-}
-
-.loading::before {
-    content: "⏳ ";
-    font-size: 2rem;
-    display: block;
-    margin-bottom: 15px;
-}
-
-.error {
-    background: #fff5f5;
-    color: #e74c3c;
-    border: 2px solid #e74c3c;
-    box-shadow: 0 10px 40px rgba(231, 76, 60, 0.2);
 }
 
 .error::before {
@@ -397,12 +492,10 @@
 }
 
 @keyframes pulse {
-
     0%,
     100% {
         transform: scale(1);
     }
-
     50% {
         transform: scale(1.02);
     }

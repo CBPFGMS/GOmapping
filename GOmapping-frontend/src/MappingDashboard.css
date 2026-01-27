@@ -181,8 +181,35 @@
 }
 
 .dashboard-table tbody tr {
-    border-bottom: 1px solid #e0e0e0;
+    border-bottom: 1px solid #e8e8e8;
     transition: all 0.3s ease;
+    position: relative;
+}
+
+/* Style for all rows in a GO group */
+.dashboard-table tbody tr.group-member-row {
+    border-left: 4px solid #667eea;
+    border-right: 4px solid #667eea;
+}
+
+/* Add thick top border to first row of each GO group */
+.dashboard-table tbody tr.group-first-row {
+    border-top: 4px solid #667eea;
+}
+
+/* Add thick bottom border and spacing to last row of each GO group */
+.dashboard-table tbody tr.group-last-row {
+    border-bottom: 4px solid #667eea;
+    margin-bottom: 8px; /* Creates visual gap between groups */
+}
+
+/* Add a visual gap after each group */
+.dashboard-table tbody tr.group-last-row td {
+    padding-bottom: 18px;
+}
+
+.dashboard-table tbody tr.group-first-row td {
+    padding-top: 18px;
 }
 
 .dashboard-table tbody tr:nth-child(even) {
@@ -191,7 +218,9 @@
 
 .dashboard-table tbody tr:hover {
     background: linear-gradient(90deg, #f0f4ff 0%, #e8eeff 100%);
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    position: relative;
+    z-index: 1;
 }
 
 .dashboard-table td {
@@ -205,11 +234,15 @@
    Grouped header styles (merged cells)
 ============================================ */
 .group-head {
-    background: linear-gradient(135deg, #e8eeff 0%, #f0f4ff 100%);
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
     font-weight: 700;
-    color: #667eea;
-    border-right: 2px solid #d0d8ff;
+    color: white !important;
+    border-right: 3px solid #5568d3 !important;
     vertical-align: middle;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+    font-size: 0.95rem;
+    position: relative;
+    box-shadow: 2px 0 8px rgba(102, 126, 234, 0.3);
 }
 
 /* ============================================
