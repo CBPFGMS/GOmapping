@@ -16,6 +16,7 @@ import re
 import sys
 import time
 from difflib import SequenceMatcher
+from html import unescape
 from itertools import combinations
 
 from django.core.management.base import BaseCommand
@@ -28,12 +29,16 @@ from orgnizations.models import GlobalOrganization, GoSimilarity, OrgMapping
 STOP_WORDS = {
     "the", "of", "for", "and", "in", "to", "a", "an", "at", "on", "&",
     "international", "foundation", "fund", "trust", "association", "organization", "org",
+    "community", "development", "society", "group", "network", "agency",
+    "national", "ngo", "initiative", "program", "programme", "action",
 }
 
 
 def normalize_name(name: str) -> str:
     if not name:
         return ""
+    # Decode HTML entities like &#233; -> é
+    name = unescape(name)
     name = name.lower()
     name = re.sub(r"[^\w\s]", " ", name)
     name = re.sub(r"\s+", " ", name).strip()
@@ -147,8 +152,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--threshold",
             type=float,
-            default=60.0,
-            help="Similarity threshold (default: 60.0)",
+            default=70.0,
+            help="Similarity threshold (default: 70.0)",
         )
         parser.add_argument(
             "--clear",
