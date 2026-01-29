@@ -2,6 +2,11 @@ from django.db.models import OuterRef, Subquery, DecimalField, CharField
 from django.shortcuts import get_object_or_404
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import status
+import os
+import requests
+import json
+
 
 from orgnizations.models import GlobalOrganization, GoSimilarity, OrgMapping
 from .serializers import GlobalOrganizationSerializer
@@ -18,39 +23,61 @@ def go_summary(request):
     from django.core.cache import cache
     from django.db.models import Count
     from organization_knowledge_base import get_recommendation_score
+    import subprocess
+    import os
     
     # Check if force refresh is requested
     force_refresh = request.GET.get('refresh', '').lower() == 'true'
     
-    # Try to get cached result
+    # Try to get cached result (only if NOT force refresh)
     cache_key = 'go_summary_data'
     if not force_refresh:
         cached_data = cache.get(cache_key)
         if cached_data:
             return Response(cached_data)
     
-    # Calculate usage count for each GO from org_mapping table
-    usage_counts = (
-        OrgMapping.objects
-        .values('global_org_id')
-        .annotate(count=Count('id'))
-    )
-    
-    # Update usage_count in global_organization table
-    for item in usage_counts:
-        GlobalOrganization.objects.filter(
-            global_org_id=item['global_org_id']
-        ).update(usage_count=item['count'])
-    
-    # Set usage_count to 0 for GOs with no mappings
-    go_ids_with_mappings = set(item['global_org_id'] for item in usage_counts)
-    all_go_ids = set(GlobalOrganization.objects.values_list('global_org_id', flat=True))
-    go_ids_without_mappings = all_go_ids - go_ids_with_mappings
-    
-    if go_ids_without_mappings:
-        GlobalOrganization.objects.filter(
-            global_org_id__in=go_ids_without_mappings
-        ).update(usage_count=0)
+    # Only update usage_count and recalculate similarities when force_refresh=true
+    if force_refresh:
+        # Calculate usage count for each GO from org_mapping table
+        usage_counts = (
+            OrgMapping.objects
+            .values('global_org_id')
+            .annotate(count=Count('id'))
+        )
+        
+        # Update usage_count in global_organization table
+        for item in usage_counts:
+            GlobalOrganization.objects.filter(
+                global_org_id=item['global_org_id']
+            ).update(usage_count=item['count'])
+        
+        # Set usage_count to 0 for GOs with no mappings
+        go_ids_with_mappings = set(item['global_org_id'] for item in usage_counts)
+        all_go_ids = set(GlobalOrganization.objects.values_list('global_org_id', flat=True))
+        go_ids_without_mappings = all_go_ids - go_ids_with_mappings
+        
+        if go_ids_without_mappings:
+            GlobalOrganization.objects.filter(
+                global_org_id__in=go_ids_without_mappings
+            ).update(usage_count=0)
+        
+        # Run similarity calculation script in background
+        try:
+            # Get the directory of manage.py
+            manage_py_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            
+            # Run the command in background (non-blocking)
+            subprocess.Popen(
+                ['python', 'manage.py', 'calculate_similarity', '--clear', '--threshold', '70'],
+                cwd=manage_py_dir,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                # On Windows, use creation flag to prevent console window
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+        except Exception as e:
+            # Log the error but don't fail the request
+            print(f"Warning: Could not start similarity calculation: {e}")
     
     # Build grouped data structure - Read from pre-calculated go_similarity table
     # Fetch all similarities from database
@@ -220,8 +247,9 @@ def go_summary(request):
         }
     }
     
-    # Cache the result for 10 minutes (600 seconds)
-    cache.set(cache_key, response_data, 600)
+    # Cache the result for 1 hour (3600 seconds)
+    # Only refresh when user explicitly clicks "Refresh Data" button
+    cache.set(cache_key, response_data, 3600)
     
     return Response(response_data)
 
@@ -362,5 +390,171 @@ def mapping_dashboard(request):
     return Response(result)
 
 
+@api_view(["POST"])
+def ai_recommendation(request):
+    """
+    AI-powered recommendation for which Global Organization to keep in a duplicate group.
+    
+    Request body:
+    {
+        "group_id": 1,
+        "group_name": "Save the Children Group",
+        "members": [
+            {
+                "global_org_id": 123,
+                "global_org_name": "Save the Children International",
+                "usage_count": 50,
+                "is_recommended": true,
+                "kb_match": true
+            },
+            ...
+        ]
+    }
+    
+    Response:
+    {
+        "recommended_id": 123,
+        "recommended_name": "Save the Children International",
+        "reasoning": ["Higher usage count", "Matches knowledge base", ...],
+        "analysis": "Detailed explanation..."
+    }
+    """
+    try:
+        # Get API key from environment variable
+        # Prefer ZHIPUAI_API_KEY; allow fallback for existing setups
+        api_key = "c4d74482a5e64890a44fd5cd2e6af2c3.LouAL40edi1tZss8"
+        # Get request data
+        group_id = request.data.get('group_id')
+        group_name = request.data.get('group_name')
+        members = request.data.get('members', [])
+        
+        if not members:
+            return Response(
+                {"error": "No members provided in the group"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Build prompt for DeepSeek
+        members_info = "\n".join([
+            f"- ID: {m['global_org_id']}, Name: {m['global_org_name']}, "
+            f"Usage: {m['usage_count']} instances, "
+            f"KB Match: {'Yes' if m.get('kb_match') else 'No'}, "
+            f"Current System Recommendation: {'KEEP' if m.get('is_recommended') else 'MERGE'}"
+            for m in members
+        ])
+        
+        prompt = f"""You are a data quality expert analyzing duplicate Global Organizations in a humanitarian aid management system.
+
+Group: {group_name}
+Members in this duplicate group:
+{members_info}
+
+Your task is to recommend which ONE Global Organization should be KEPT as the master record, while others should be merged into it.
+
+Consider these factors (in order of importance):
+1. **Standardization**: Which name follows the most standard, official format?
+2. **Usage frequency**: Higher usage indicates more established/trusted
+3. **Knowledge base match**: Organizations in our knowledge base are verified and standardized
+4. **Name completeness**: Full official names are better than abbreviated versions or regional variants
+5. **Geographic scope**: International/global variants are preferred over country-specific ones
+
+Please respond in the following JSON format:
+{{
+    "recommended_id": <ID of the organization to keep>,
+    "recommended_name": "<Name of the organization to keep>",
+    "reasoning": [
+        "<Concise reason 1>",
+        "<Concise reason 2>",
+        "<Concise reason 3>"
+    ],
+    "analysis": "<2-3 sentence detailed explanation of your recommendation>"
+}}
+
+Be decisive and provide a clear recommendation."""
+
+        # Call ZhipuAI via official Python SDK
+        try:
+            from zhipuai import ZhipuAI
+        except Exception as e:
+            return Response(
+                {
+                    "error": (
+                        "ZhipuAI SDK not installed. Install it in backend env: "
+                        "`pip install zhipuai`. "
+                        f"Import error: {str(e)}"
+                    )
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        client = ZhipuAI(api_key=api_key)
+
+        completion = client.chat.completions.create(
+            model="glm-4.7-flash",
+            messages=[
+                {"role": "system", "content": "You are a data quality expert. Always respond with valid JSON."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=1.0,
+            max_tokens=1024,
+        )
+
+        response_text = (completion.choices[0].message.content or "").strip()
+        
+        # Log raw response for debugging
+        print(f"[DEBUG] AI raw response length: {len(response_text)}")
+        print(f"[DEBUG] AI raw response preview: {response_text[:500]}")
+        
+        # Check if response is empty
+        if not response_text:
+            return Response(
+                {"error": "AI returned empty response. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        # Try to extract JSON from response
+        import re
+        
+        # Find JSON in response (might be wrapped in markdown code blocks)
+        json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            # Try to find JSON object directly
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+            else:
+                json_str = response_text
+        
+        # Try to parse JSON
+        try:
+            ai_result = json.loads(json_str)
+        except json.JSONDecodeError as e:
+            # Return detailed error with raw response
+            return Response(
+                {
+                    "error": f"Failed to parse AI response as JSON: {str(e)}",
+                    "raw_response": response_text[:500],  # First 500 chars for debugging
+                    "hint": "AI may not be following the JSON format. Try regenerating."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+        return Response({
+            "recommended_id": ai_result.get("recommended_id"),
+            "recommended_name": ai_result.get("recommended_name"),
+            "reasoning": ai_result.get("reasoning", []),
+            "analysis": ai_result.get("analysis", "")
+        })
+    except Exception as e:
+        # Log full error for debugging
+        import traceback
+        print(f"[ERROR] ZhipuAI API error: {str(e)}")
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        return Response(
+            {"error": f"ZhipuAI API error: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 

@@ -27,10 +27,9 @@ from orgnizations.models import GlobalOrganization, GoSimilarity, OrgMapping
 
 
 STOP_WORDS = {
+    # Only truly meaningless words (articles, prepositions, conjunctions)
     "the", "of", "for", "and", "in", "to", "a", "an", "at", "on", "&",
-    "international", "foundation", "fund", "trust", "association", "organization", "org",
-    "community", "development", "society", "group", "network", "agency",
-    "national", "ngo", "initiative", "program", "programme", "action",
+    "de", "del", "y", "et", "la", "le", "les", "el", "los", "las",
 }
 
 
@@ -62,12 +61,24 @@ def jaccard(a: set[str], b: set[str]) -> float:
     return inter / union if union else 0.0
 
 
-def weighted_similarity(norm1: str, tok1: set[str], acr1: str, norm2: str, tok2: set[str], acr2: str) -> float:
+def weighted_similarity(norm1: str, tok1: set[str], acr1: str, norm2: str, tok2: set[str], acr2: str, 
+                       original1: str = "", original2: str = "") -> float:
     if not norm1 or not norm2:
         return 0.0
 
+    # Check if normalized names are identical
     if norm1 == norm2:
-        return 100.0
+        # Also check if original names are very similar (to avoid false 100% matches)
+        orig1_clean = original1.lower().strip() if original1 else norm1
+        orig2_clean = original2.lower().strip() if original2 else norm2
+        
+        if orig1_clean == orig2_clean:
+            return 100.0  # Truly identical
+        else:
+            # Normalized names match but originals differ slightly
+            # Calculate similarity on original names to get more accurate score
+            orig_sim = SequenceMatcher(None, orig1_clean, orig2_clean).ratio() * 100.0
+            return min(orig_sim, 98.0)  # Cap at 98% to indicate they're not identical
 
     seq_sim = SequenceMatcher(None, norm1, norm2).ratio() * 100.0
     token_sim = jaccard(tok1, tok2) * 100.0
@@ -274,7 +285,11 @@ class Command(BaseCommand):
             if jac < 0.10 and not (go1["acr"] and go2["acr"] and go1["acr"] == go2["acr"]):
                 continue
 
-            sim = weighted_similarity(go1["norm"], go1["tok"], go1["acr"], go2["norm"], go2["tok"], go2["acr"])
+            sim = weighted_similarity(
+                go1["norm"], go1["tok"], go1["acr"], 
+                go2["norm"], go2["tok"], go2["acr"],
+                go1.get("global_org_name", ""), go2.get("global_org_name", "")
+            )
             if sim >= threshold:
                 edges.append((go1["global_org_id"], go2["global_org_id"], round(sim, 2)))
         p_score.done()
@@ -301,7 +316,11 @@ class Command(BaseCommand):
             self.stdout.write(self.style.SUCCESS("✅ OrgMapping match_percent/risk_level done."))
 
     def _compute_mapping_similarity(self, gos):
-        go_info = {go["global_org_id"]: (go["norm"], go["tok"], go["acr"]) for go in gos}
+        # Store original name along with normalized data
+        go_info = {
+            go["global_org_id"]: (go["norm"], go["tok"], go["acr"], go.get("global_org_name", "")) 
+            for go in gos
+        }
 
         qs = OrgMapping.objects.values("id", "global_org_id", "instance_org_name", "instance_org_acronym")
 
@@ -315,14 +334,18 @@ class Command(BaseCommand):
             if count % 500 == 0 or count == total_rows:
                 p_map.update(count)
 
-            go_norm, go_tok, go_acr = go_info.get(row["global_org_id"], ("", set(), ""))
+            go_norm, go_tok, go_acr, go_original = go_info.get(row["global_org_id"], ("", set(), "", ""))
 
             inst_name = row.get("instance_org_name") or ""
             inst_norm = normalize_name(inst_name)
             inst_tok = token_set(inst_norm)
             inst_acr = (row.get("instance_org_acronym") or "").upper().strip()
 
-            sim = weighted_similarity(go_norm, go_tok, go_acr, inst_norm, inst_tok, inst_acr)
+            sim = weighted_similarity(
+                go_norm, go_tok, go_acr, 
+                inst_norm, inst_tok, inst_acr,
+                go_original, inst_name
+            )
             sim = round(sim, 2)
 
             updates.append(

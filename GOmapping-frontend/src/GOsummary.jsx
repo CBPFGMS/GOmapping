@@ -13,6 +13,10 @@ function GOsummary() {
     const [expandedUniqueOrgs, setExpandedUniqueOrgs] = useState(new Set());
     const navigate = useNavigate();
 
+    // AI recommendation state
+    const [aiRecommendations, setAiRecommendations] = useState({}); // {group_id: {recommendation, reasoning, loading}}
+    const [aiLoadingGroups, setAiLoadingGroups] = useState(new Set());
+
     // Pagination state - Duplicate Groups
     const [dupCurrentPage, setDupCurrentPage] = useState(1);
     const [dupItemsPerPage, setDupItemsPerPage] = useState(15);
@@ -25,6 +29,13 @@ function GOsummary() {
 
     const fetchData = (forceRefresh = false) => {
         setLoading(true);
+
+        // If forceRefresh, clear sessionStorage cache to ensure fresh data
+        if (forceRefresh) {
+            sessionStorage.removeItem('go_summary_data');
+            console.log('🗑️ Cleared sessionStorage cache (force refresh)');
+        }
+
         const refreshParam = forceRefresh ? '&refresh=true' : '';
         const timestamp = new Date().getTime();
         fetch(`http://localhost:8000/go-summary/?_t=${timestamp}${refreshParam}`)
@@ -38,6 +49,17 @@ function GOsummary() {
                 setDuplicateGroups(jsonData.duplicate_groups || []);
                 setUniqueOrgs(jsonData.unique_organizations || []);
                 setSummary(jsonData.summary || {});
+
+                // Save to sessionStorage for page refreshes
+                const cacheData = {
+                    duplicate_groups: jsonData.duplicate_groups || [],
+                    unique_organizations: jsonData.unique_organizations || [],
+                    summary: jsonData.summary || {},
+                    timestamp: Date.now()
+                };
+                sessionStorage.setItem('go_summary_data', JSON.stringify(cacheData));
+                console.log('💾 Data saved to sessionStorage cache');
+
                 // Reset pagination when new data is loaded
                 setDupCurrentPage(1);
                 setUniqueCurrentPage(1);
@@ -50,6 +72,34 @@ function GOsummary() {
     };
 
     useEffect(() => {
+        // Try to load from sessionStorage first (for browser refresh)
+        const cachedData = sessionStorage.getItem('go_summary_data');
+
+        if (cachedData) {
+            try {
+                const parsed = JSON.parse(cachedData);
+                const cacheAge = Date.now() - (parsed.timestamp || 0);
+                const cacheValidDuration = 24 * 60 * 60 * 1000; // 24 hours (only refresh when user clicks "Refresh Data")
+
+                // If cache is still valid, use it without showing loading
+                if (cacheAge < cacheValidDuration) {
+                    console.log('✅ Using cached data from sessionStorage (age: ' + Math.round(cacheAge / 1000) + 's)');
+                    setDuplicateGroups(parsed.duplicate_groups || []);
+                    setUniqueOrgs(parsed.unique_organizations || []);
+                    setSummary(parsed.summary || {});
+                    setLoading(false);
+                    return; // Don't fetch from server
+                } else {
+                    console.log('⏰ Cache expired (age: ' + Math.round(cacheAge / 1000) + 's), fetching fresh data');
+                }
+            } catch (e) {
+                console.error('❌ Failed to parse cached data:', e);
+            }
+        } else {
+            console.log('📭 No cached data found, fetching from server');
+        }
+
+        // If no valid cache, fetch from server
         fetchData();
     }, []);
 
@@ -249,7 +299,91 @@ function GOsummary() {
         navigate(`/org-mappings/${goId}`);
     };
 
+    // Ask AI for recommendation
+    const askAI = async (group, forceRegenerate = false) => {
+        const groupId = group.group_id;
 
+        // If already loading, ignore
+        if (aiLoadingGroups.has(groupId)) {
+            return;
+        }
+
+        // If regenerating, clear old recommendation first
+        if (forceRegenerate && aiRecommendations[groupId]) {
+            setAiRecommendations(prev => {
+                const newRecs = { ...prev };
+                delete newRecs[groupId];
+                return newRecs;
+            });
+        }
+
+        // Auto-expand the group to show AI result
+        setExpandedGroups(prev => new Set([...prev, groupId]));
+
+        // Set loading state
+        setAiLoadingGroups(prev => new Set([...prev, groupId]));
+
+        try {
+            const response = await fetch(`http://localhost:8000/api/ai-recommendation/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    group_id: groupId,
+                    group_name: group.group_name,
+                    members: group.members.map(m => ({
+                        global_org_id: m.global_org_id,
+                        global_org_name: m.global_org_name,
+                        usage_count: m.usage_count,
+                        is_recommended: m.is_recommended,
+                        kb_match: m.kb_match
+                    }))
+                })
+            });
+
+            if (!response.ok) {
+                // Surface backend error message (often contains the real cause)
+                const raw = await response.text();
+                let message = raw || 'AI recommendation failed';
+                try {
+                    const parsed = JSON.parse(raw);
+                    if (parsed?.error) message = parsed.error;
+                } catch {
+                    // ignore JSON parse errors
+                }
+                throw new Error(message);
+            }
+
+            const data = await response.json();
+
+            // Save AI recommendation
+            setAiRecommendations(prev => ({
+                ...prev,
+                [groupId]: {
+                    recommended_id: data.recommended_id,
+                    recommended_name: data.recommended_name,
+                    reasoning: data.reasoning,
+                    analysis: data.analysis
+                }
+            }));
+        } catch (err) {
+            console.error('AI recommendation error:', err);
+            setAiRecommendations(prev => ({
+                ...prev,
+                [groupId]: {
+                    error: err?.message || 'Failed to get AI recommendation. Please try again.'
+                }
+            }));
+        } finally {
+            // Remove loading state
+            setAiLoadingGroups(prev => {
+                const newSet = new Set(prev);
+                newSet.delete(groupId);
+                return newSet;
+            });
+        }
+    };
 
     if (loading) {
         return (
@@ -369,32 +503,86 @@ function GOsummary() {
                                 <div key={group.group_id} className='group-card'>
                                     <div
                                         className='group-header'
-                                        onClick={() => toggleGroup(group.group_id)}
                                     >
-                                        <div className='group-title'>
-                                            <span className='group-icon'>
-                                                {expandedGroups.has(group.group_id) ? '▼' : '▶'}
-                                            </span>
-                                            <span className='group-name'>{group.group_name}</span>
-                                            <span className={`similarity-badge ${getSimilarityClass(group.max_similarity)}`}>
-                                                {group.max_similarity.toFixed(1)}% similar
-                                            </span>
+                                        <div
+                                            className='group-header-main'
+                                            onClick={() => toggleGroup(group.group_id)}
+                                        >
+                                            <div className='group-title'>
+                                                <span className='group-icon'>
+                                                    {expandedGroups.has(group.group_id) ? '▼' : '▶'}
+                                                </span>
+                                                <span className='group-name'>{group.group_name}</span>
+                                                <span className={`similarity-badge ${getSimilarityClass(group.max_similarity)}`}>
+                                                    {group.max_similarity.toFixed(1)}% similar
+                                                </span>
+                                            </div>
+                                            <div className='group-meta'>
+                                                <span className='meta-item'>
+                                                    {group.total_members} members
+                                                </span>
+                                                <span className='meta-item'>
+                                                    {group.total_instances} instances
+                                                </span>
+                                            </div>
+                                            <div className='recommended-info'>
+                                                ⭐ Recommended: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name}
+                                            </div>
                                         </div>
-                                        <div className='group-meta'>
-                                            <span className='meta-item'>
-                                                {group.total_members} members
-                                            </span>
-                                            <span className='meta-item'>
-                                                {group.total_instances} instances
-                                            </span>
-                                        </div>
-                                        <div className='recommended-info'>
-                                            ⭐ Recommended: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name}
-                                        </div>
+                                        <button
+                                            className={`ai-btn ${aiLoadingGroups.has(group.group_id) ? 'loading' : ''} ${aiRecommendations[group.group_id] ? 'has-result' : ''}`}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                // If already has result, regenerate; otherwise ask AI
+                                                const shouldRegenerate = !!aiRecommendations[group.group_id];
+                                                askAI(group, shouldRegenerate);
+                                            }}
+                                            disabled={aiLoadingGroups.has(group.group_id)}
+                                        >
+                                            {aiLoadingGroups.has(group.group_id) ? '🤔 AI Thinking...' :
+                                                aiRecommendations[group.group_id] ? '🔄 Regenerate AI' : '🤖 Ask AI'}
+                                        </button>
                                     </div>
 
                                     {expandedGroups.has(group.group_id) && (
                                         <div className='group-details'>
+                                            {/* AI Recommendation Display */}
+                                            {aiRecommendations[group.group_id] && !aiRecommendations[group.group_id].error && (
+                                                <div className='ai-recommendation-panel'>
+                                                    <div className='ai-header'>
+                                                        <span className='ai-icon'>🤖</span>
+                                                        <h3 className='ai-title'>AI Analysis & Recommendation</h3>
+                                                    </div>
+                                                    <div className='ai-content'>
+                                                        <div className='ai-recommendation'>
+                                                            <div className='ai-label'>💡 Recommended to Keep:</div>
+                                                            <div className='ai-value'>
+                                                                <strong>#{aiRecommendations[group.group_id].recommended_id}</strong> - {aiRecommendations[group.group_id].recommended_name}
+                                                            </div>
+                                                        </div>
+                                                        <div className='ai-reasoning'>
+                                                            <div className='ai-label'>📊 Key Factors:</div>
+                                                            <ul className='ai-reasons-list'>
+                                                                {aiRecommendations[group.group_id].reasoning.map((reason, idx) => (
+                                                                    <li key={idx}>{reason}</li>
+                                                                ))}
+                                                            </ul>
+                                                        </div>
+                                                        {aiRecommendations[group.group_id].analysis && (
+                                                            <div className='ai-analysis'>
+                                                                <div className='ai-label'>🔍 Detailed Analysis:</div>
+                                                                <p className='ai-analysis-text'>{aiRecommendations[group.group_id].analysis}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {aiRecommendations[group.group_id]?.error && (
+                                                <div className='ai-error-panel'>
+                                                    <span className='error-icon'>⚠️</span>
+                                                    <span>{aiRecommendations[group.group_id].error}</span>
+                                                </div>
+                                            )}
                                             <div className='tree-structure'>
                                                 {group.members.map((member) => (
                                                     <div key={member.global_org_id} className='tree-node'>
@@ -457,6 +645,17 @@ function GOsummary() {
                                 </div>
                             ))}
                         </div>
+                        {/* Bottom pagination for Duplicate Groups */}
+                        <PaginationControls
+                            totalItems={duplicateGroups.length}
+                            currentPage={safeDupPage}
+                            itemsPerPage={dupItemsPerPage}
+                            setCurrentPage={setDupCurrentPage}
+                            jumpToPage={dupJumpToPage}
+                            setJumpToPage={setDupJumpToPage}
+                            setItemsPerPage={setDupItemsPerPage}
+                            labelPrefix='Groups per page'
+                        />
                     </div>
                 )}
 
@@ -550,6 +749,17 @@ function GOsummary() {
                                 </div>
                             ))}
                         </div>
+                        {/* Bottom pagination for Unique Organizations */}
+                        <PaginationControls
+                            totalItems={uniqueOrgs.length}
+                            currentPage={safeUniquePage}
+                            itemsPerPage={uniqueItemsPerPage}
+                            setCurrentPage={setUniqueCurrentPage}
+                            jumpToPage={uniqueJumpToPage}
+                            setJumpToPage={setUniqueJumpToPage}
+                            setItemsPerPage={setUniqueItemsPerPage}
+                            labelPrefix='Orgs per page'
+                        />
                     </div>
                 )}
             </div>

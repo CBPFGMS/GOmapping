@@ -6,4 +6,5 @@ urlpatterns = [
     path('go-detail/<int:go_id>/', views.go_detail),
     path('org-mappings/<int:go_id>/', views.org_mapping),
     path('mapping-dashboard/', views.mapping_dashboard),
+    path('ai-recommendation/', views.ai_recommendation),
 ]
