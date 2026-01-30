@@ -13,4 +13,10 @@ urlpatterns = [
     path('sync-history/', views.sync_history, name='sync_history'),
     path('trigger-sync/', views.trigger_sync, name='trigger_sync'),
     path('check-for-updates/', views.check_for_updates, name='check_for_updates'),
+    
+    # Merge Decision API
+    path('merge-decisions/', views.list_merge_decisions, name='list_merge_decisions'),
+    path('merge-decisions/create/', views.create_merge_decision, name='create_merge_decision'),
+    path('merge-decisions/<int:decision_id>/', views.delete_merge_decision, name='delete_merge_decision'),
+    path('merge-decisions/<int:decision_id>/status/', views.update_merge_decision_status, name='update_merge_decision_status'),
 ]

@@ -22,6 +22,11 @@ function GOsummary() {
     const [aiRecommendations, setAiRecommendations] = useState({}); // {group_id: {recommendation, reasoning, loading}}
     const [aiLoadingGroups, setAiLoadingGroups] = useState(new Set());
 
+    // Merge Decision state
+    const [showDecisionModal, setShowDecisionModal] = useState(false);
+    const [decisionData, setDecisionData] = useState(null);
+    const [submittingDecision, setSubmittingDecision] = useState(false);
+
     // Pagination state - Duplicate Groups
     const [dupCurrentPage, setDupCurrentPage] = useState(1);
     const [dupItemsPerPage, setDupItemsPerPage] = useState(15);
@@ -479,6 +484,54 @@ function GOsummary() {
         }
     };
 
+    // ========== Merge Decision Functions ==========
+
+    const openDecisionModal = (instanceOrg, currentGlobalOrg, targetGlobalOrg, group) => {
+        setDecisionData({
+            instance_org_id: instanceOrg.instance_org_id,
+            instance_org_name: instanceOrg.instance_org_name,
+            original_global_org_id: currentGlobalOrg.global_org_id,
+            original_global_org_name: currentGlobalOrg.global_org_name,
+            target_global_org_id: targetGlobalOrg.global_org_id,
+            target_global_org_name: targetGlobalOrg.global_org_name,
+            similarity_score: group.max_similarity,
+            decision_type: 'remap',
+            confidence: 'high',
+            notes: ''
+        });
+        setShowDecisionModal(true);
+    };
+
+    const submitDecision = async () => {
+        if (!decisionData) return;
+
+        setSubmittingDecision(true);
+        try {
+            const response = await fetch('http://localhost:8000/api/merge-decisions/create/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(decisionData)
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to record decision');
+            }
+
+            const result = await response.json();
+            alert(`✅ Decision recorded successfully! (ID: ${result.decision_id})`);
+            setShowDecisionModal(false);
+            setDecisionData(null);
+        } catch (err) {
+            console.error('Error submitting decision:', err);
+            alert(`❌ Error: ${err.message}`);
+        } finally {
+            setSubmittingDecision(false);
+        }
+    };
+
     // Don't show full-screen loading, only show in-place loading indicator
     // if (loading) {
     //     return loading page...
@@ -514,6 +567,13 @@ function GOsummary() {
                             onClick={() => navigate('/mapping-dashboard')}
                         >
                             📊 Check Mapping Dashboard
+                        </button>
+                        <button
+                            className='nav-button'
+                            onClick={() => navigate('/merge-decisions')}
+                            style={{ minWidth: '180px' }}
+                        >
+                            📝 View Decisions
                         </button>
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', minHeight: '60px' }}>
                             <button
@@ -726,6 +786,16 @@ function GOsummary() {
                                                                                 ? `${Math.round(inst.match_percent)}%`
                                                                                 : '—'}
                                                                         </span>
+                                                                        {/* Record Decision Button - only show if not the recommended one */}
+                                                                        {!member.is_recommended && (
+                                                                            <button
+                                                                                className='record-decision-btn'
+                                                                                onClick={() => openDecisionModal(inst, member, group.recommended_master, group)}
+                                                                                title='Record mapping change decision'
+                                                                            >
+                                                                                📝 Record
+                                                                            </button>
+                                                                        )}
                                                                     </div>
                                                                 ))}
                                                                 {member.usage_count > member.instance_organizations.length && (
@@ -864,6 +934,107 @@ function GOsummary() {
                             setItemsPerPage={setUniqueItemsPerPage}
                             labelPrefix='Orgs per page'
                         />
+                    </div>
+                )}
+
+                {/* Merge Decision Modal */}
+                {showDecisionModal && decisionData && (
+                    <div className='modal-overlay' onClick={() => setShowDecisionModal(false)}>
+                        <div className='modal-content' onClick={(e) => e.stopPropagation()}>
+                            <div className='modal-header'>
+                                <h2>📝 Record Mapping Change Decision</h2>
+                                <button className='modal-close' onClick={() => setShowDecisionModal(false)}>✕</button>
+                            </div>
+
+                            <div className='modal-body'>
+                                <div className='decision-flow'>
+                                    <div className='flow-item'>
+                                        <div className='flow-label'>Instance Organization</div>
+                                        <div className='flow-value'>
+                                            <strong>#{decisionData.instance_org_id}</strong>
+                                            <span>{decisionData.instance_org_name}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className='flow-arrow'>↓</div>
+
+                                    <div className='flow-item original'>
+                                        <div className='flow-label'>Current Mapping</div>
+                                        <div className='flow-value'>
+                                            <strong>#{decisionData.original_global_org_id}</strong>
+                                            <span>{decisionData.original_global_org_name}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className='flow-arrow change'>→</div>
+
+                                    <div className='flow-item target'>
+                                        <div className='flow-label'>New Mapping ⭐</div>
+                                        <div className='flow-value'>
+                                            <strong>#{decisionData.target_global_org_id}</strong>
+                                            <span>{decisionData.target_global_org_name}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className='form-group'>
+                                    <label>Decision Type:</label>
+                                    <select
+                                        value={decisionData.decision_type}
+                                        onChange={(e) => setDecisionData({ ...decisionData, decision_type: e.target.value })}
+                                    >
+                                        <option value="remap">Remap (Change mapping)</option>
+                                        <option value="merge">Merge</option>
+                                        <option value="review_later">Review Later</option>
+                                    </select>
+                                </div>
+
+                                <div className='form-group'>
+                                    <label>Confidence Level:</label>
+                                    <select
+                                        value={decisionData.confidence}
+                                        onChange={(e) => setDecisionData({ ...decisionData, confidence: e.target.value })}
+                                    >
+                                        <option value="high">High</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="low">Low</option>
+                                    </select>
+                                </div>
+
+                                <div className='form-group'>
+                                    <label>Notes (optional):</label>
+                                    <textarea
+                                        value={decisionData.notes}
+                                        onChange={(e) => setDecisionData({ ...decisionData, notes: e.target.value })}
+                                        placeholder="Add any notes about this decision..."
+                                        rows="3"
+                                    />
+                                </div>
+
+                                {decisionData.similarity_score && (
+                                    <div className='info-box'>
+                                        ℹ️ Similarity Score: <strong>{decisionData.similarity_score.toFixed(1)}%</strong>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className='modal-footer'>
+                                <button
+                                    className='btn-secondary'
+                                    onClick={() => setShowDecisionModal(false)}
+                                    disabled={submittingDecision}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className='btn-primary'
+                                    onClick={submitDecision}
+                                    disabled={submittingDecision}
+                                >
+                                    {submittingDecision ? '⏳ Recording...' : '✅ Record Decision'}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>

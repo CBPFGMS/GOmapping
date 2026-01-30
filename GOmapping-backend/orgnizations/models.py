@@ -109,3 +109,73 @@ class DataSyncLog(models.Model):
         if self.completed_at and self.started_at:
             return (self.completed_at - self.started_at).total_seconds()
         return None
+
+
+class MergeDecision(models.Model):
+    """
+    映射变更决策记录表
+    用于记录将 Instance Org 的映射关系从原 Global Org 改为新 Global Org 的决策
+    记录完整的映射变更链路：Instance Org → Original Global Org → Target Global Org
+    只记录决策，不实际执行修改操作
+    """
+    DECISION_TYPES = [
+        ('remap', 'Remap'),  # 重新映射
+        ('merge', 'Merge'),  # 合并
+        ('review_later', 'Review Later'),  # 稍后审查
+    ]
+    
+    CONFIDENCE_LEVELS = [
+        ('high', 'High'),
+        ('medium', 'Medium'),
+        ('low', 'Low'),
+    ]
+    
+    EXECUTION_STATUS = [
+        ('pending', 'Pending'),
+        ('executed', 'Executed'),
+        ('cancelled', 'Cancelled'),
+    ]
+    
+    decision_id = models.AutoField(primary_key=True)
+    
+    # Instance Organization（实例组织）
+    instance_org_id = models.IntegerField()
+    instance_org_name = models.CharField(max_length=255)
+    
+    # Original Mapping（原始映射）
+    original_global_org_id = models.IntegerField()
+    original_global_org_name = models.CharField(max_length=255)
+    
+    # Target Mapping（目标映射）
+    target_global_org_id = models.IntegerField()
+    target_global_org_name = models.CharField(max_length=255)
+    
+    # Decision Info（决策信息）
+    decision_type = models.CharField(max_length=50, choices=DECISION_TYPES, default='remap')
+    confidence = models.CharField(max_length=20, choices=CONFIDENCE_LEVELS, null=True, blank=True)
+    similarity_score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    notes = models.TextField(blank=True)
+    
+    # Decision Metadata（决策元数据）
+    decided_by = models.CharField(max_length=100, default='admin')
+    decided_at = models.DateTimeField(auto_now_add=True)
+    
+    # Execution Status（执行状态）
+    execution_status = models.CharField(max_length=50, choices=EXECUTION_STATUS, default='pending')
+    executed_at = models.DateTimeField(null=True, blank=True)
+    executed_by = models.CharField(max_length=100, null=True, blank=True)
+    execution_notes = models.TextField(blank=True)
+    
+    class Meta:
+        db_table = 'merge_decisions'
+        ordering = ['-decided_at']
+        indexes = [
+            models.Index(fields=['instance_org_id']),
+            models.Index(fields=['original_global_org_id']),
+            models.Index(fields=['target_global_org_id']),
+            models.Index(fields=['execution_status']),
+            models.Index(fields=['-decided_at']),
+        ]
+    
+    def __str__(self):
+        return f"Decision {self.decision_id}: {self.instance_org_name} ({self.original_global_org_name} → {self.target_global_org_name})"

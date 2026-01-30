@@ -8,7 +8,7 @@ import requests
 import json
 
 
-from orgnizations.models import GlobalOrganization, GoSimilarity, OrgMapping, DataSyncLog
+from orgnizations.models import GlobalOrganization, GoSimilarity, OrgMapping, DataSyncLog, MergeDecision
 from .serializers import GlobalOrganizationSerializer
 from .sync_service import SmartDataSyncService
 
@@ -683,5 +683,254 @@ def check_for_updates(request):
         "last_sync_status": last_sync.status if last_sync else None,
         "message": "Updates available" if should_sync else "No updates needed"
     })
+
+
+# ==================== Merge Decision APIs ====================
+
+@api_view(['POST'])
+def create_merge_decision(request):
+    """
+    创建映射变更决策记录
+    
+    POST /api/merge-decisions/create/
+    Body: {
+        "instance_org_id": 123,
+        "instance_org_name": "Organization A",
+        "original_global_org_id": 456,
+        "original_global_org_name": "Original Global Org",
+        "target_global_org_id": 789,
+        "target_global_org_name": "Target Global Org",
+        "decision_type": "remap",  // optional: 'remap', 'merge', 'review_later'
+        "confidence": "high",  // optional: 'high', 'medium', 'low'
+        "similarity_score": 0.95,  // optional
+        "notes": "Reason for remapping",  // optional
+        "decided_by": "admin"  // optional
+    }
+    """
+    try:
+        data = request.data
+        
+        # 验证必需字段
+        required_fields = [
+            'instance_org_id', 'instance_org_name',
+            'original_global_org_id', 'original_global_org_name',
+            'target_global_org_id', 'target_global_org_name'
+        ]
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            return Response({
+                'error': f'Missing required fields: {", ".join(missing_fields)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # 检查是否已存在相同的待处理决策
+        existing = MergeDecision.objects.filter(
+            instance_org_id=data['instance_org_id'],
+            target_global_org_id=data['target_global_org_id'],
+            execution_status='pending'
+        ).first()
+        
+        if existing:
+            return Response({
+                'error': 'A pending decision already exists for this mapping change',
+                'existing_decision_id': existing.decision_id
+            }, status=status.HTTP_409_CONFLICT)
+        
+        # 创建决策记录
+        decision = MergeDecision.objects.create(
+            instance_org_id=data['instance_org_id'],
+            instance_org_name=data['instance_org_name'],
+            original_global_org_id=data['original_global_org_id'],
+            original_global_org_name=data['original_global_org_name'],
+            target_global_org_id=data['target_global_org_id'],
+            target_global_org_name=data['target_global_org_name'],
+            decision_type=data.get('decision_type', 'remap'),
+            confidence=data.get('confidence'),
+            similarity_score=data.get('similarity_score'),
+            notes=data.get('notes', ''),
+            decided_by=data.get('decided_by', 'admin')
+        )
+        
+        return Response({
+            'success': True,
+            'decision_id': decision.decision_id,
+            'message': 'Mapping change decision recorded successfully',
+            'decision': {
+                'decision_id': decision.decision_id,
+                'instance_org_id': decision.instance_org_id,
+                'instance_org_name': decision.instance_org_name,
+                'original_global_org_id': decision.original_global_org_id,
+                'original_global_org_name': decision.original_global_org_name,
+                'target_global_org_id': decision.target_global_org_id,
+                'target_global_org_name': decision.target_global_org_name,
+                'decision_type': decision.decision_type,
+                'confidence': decision.confidence,
+                'similarity_score': str(decision.similarity_score) if decision.similarity_score else None,
+                'notes': decision.notes,
+                'decided_by': decision.decided_by,
+                'decided_at': decision.decided_at,
+                'execution_status': decision.execution_status
+            }
+        }, status=status.HTTP_201_CREATED)
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+def list_merge_decisions(request):
+    """
+    获取映射变更决策列表
+    
+    GET /api/merge-decisions/
+    Query params:
+        - status: filter by execution_status (pending/executed/cancelled)
+        - instance_org_id: filter by instance organization
+        - original_global_org_id: filter by original global organization
+        - target_global_org_id: filter by target global organization
+    """
+    try:
+        decisions = MergeDecision.objects.all()
+        
+        # 过滤
+        exec_status = request.GET.get('status')
+        if exec_status:
+            decisions = decisions.filter(execution_status=exec_status)
+        
+        instance_org_id = request.GET.get('instance_org_id')
+        if instance_org_id:
+            decisions = decisions.filter(instance_org_id=instance_org_id)
+        
+        original_global_org_id = request.GET.get('original_global_org_id')
+        if original_global_org_id:
+            decisions = decisions.filter(original_global_org_id=original_global_org_id)
+        
+        target_global_org_id = request.GET.get('target_global_org_id')
+        if target_global_org_id:
+            decisions = decisions.filter(target_global_org_id=target_global_org_id)
+        
+        # 序列化
+        decisions_data = [{
+            'decision_id': d.decision_id,
+            'instance_org_id': d.instance_org_id,
+            'instance_org_name': d.instance_org_name,
+            'original_global_org_id': d.original_global_org_id,
+            'original_global_org_name': d.original_global_org_name,
+            'target_global_org_id': d.target_global_org_id,
+            'target_global_org_name': d.target_global_org_name,
+            'decision_type': d.decision_type,
+            'confidence': d.confidence,
+            'similarity_score': str(d.similarity_score) if d.similarity_score else None,
+            'notes': d.notes,
+            'decided_by': d.decided_by,
+            'decided_at': d.decided_at,
+            'execution_status': d.execution_status,
+            'executed_at': d.executed_at,
+            'executed_by': d.executed_by,
+            'execution_notes': d.execution_notes
+        } for d in decisions]
+        
+        return Response({
+            'count': len(decisions_data),
+            'decisions': decisions_data
+        })
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['DELETE'])
+def delete_merge_decision(request, decision_id):
+    """
+    删除合并决策记录
+    
+    DELETE /api/merge-decisions/<decision_id>/
+    """
+    try:
+        decision = get_object_or_404(MergeDecision, decision_id=decision_id)
+        
+        # 只允许删除 pending 状态的决策
+        if decision.execution_status != 'pending':
+            return Response({
+                'error': f'Cannot delete decision with status: {decision.execution_status}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        decision_info = {
+            'decision_id': decision.decision_id,
+            'source_org_name': decision.source_org_name,
+            'target_global_org_name': decision.target_global_org_name
+        }
+        
+        decision.delete()
+        
+        return Response({
+            'success': True,
+            'message': 'Decision deleted successfully',
+            'deleted_decision': decision_info
+        })
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['PATCH'])
+def update_merge_decision_status(request, decision_id):
+    """
+    更新决策执行状态
+    
+    PATCH /api/merge-decisions/<decision_id>/status/
+    Body: {
+        "execution_status": "executed",  // 'executed', 'cancelled', 'pending'
+        "executed_by": "admin",  // optional
+        "execution_notes": "Manually executed in source system"  // optional
+    }
+    """
+    try:
+        decision = get_object_or_404(MergeDecision, decision_id=decision_id)
+        
+        new_status = request.data.get('execution_status')
+        if not new_status:
+            return Response({
+                'error': 'execution_status is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if new_status not in ['executed', 'cancelled', 'pending']:
+            return Response({
+                'error': 'Invalid execution_status'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        from django.utils import timezone
+        decision.execution_status = new_status
+        
+        if new_status == 'executed':
+            decision.executed_at = timezone.now()
+            decision.executed_by = request.data.get('executed_by', 'admin')
+            decision.execution_notes = request.data.get('execution_notes', '')
+        elif new_status == 'cancelled':
+            decision.execution_notes = request.data.get('execution_notes', 'Cancelled by user')
+        
+        decision.save()
+        
+        return Response({
+            'success': True,
+            'message': f'Decision status updated to {new_status}',
+            'decision': {
+                'decision_id': decision.decision_id,
+                'execution_status': decision.execution_status,
+                'executed_at': decision.executed_at,
+                'executed_by': decision.executed_by,
+                'execution_notes': decision.execution_notes
+            }
+        })
+        
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
