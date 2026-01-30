@@ -8,8 +8,9 @@ import requests
 import json
 
 
-from orgnizations.models import GlobalOrganization, GoSimilarity, OrgMapping
+from orgnizations.models import GlobalOrganization, GoSimilarity, OrgMapping, DataSyncLog
 from .serializers import GlobalOrganizationSerializer
+from .sync_service import SmartDataSyncService
 
 @api_view(['GET'])
 def go_list(request):
@@ -556,5 +557,131 @@ Be decisive and provide a clear recommendation."""
             {"error": f"ZhipuAI API error: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+# ============================================
+# 数据同步 API
+# ============================================
+
+@api_view(['GET'])
+def sync_status(request):
+    """
+    获取数据同步状态
+    GET /api/sync-status/
+    GET /api/sync-status/?sync_type=org_mapping
+    """
+    sync_type = request.GET.get('sync_type', None)
+    
+    service = SmartDataSyncService()
+    status_info = service.get_sync_status(sync_type)
+    
+    return Response(status_info)
+
+
+@api_view(['GET'])
+def sync_history(request):
+    """
+    获取同步历史记录
+    GET /api/sync-history/
+    GET /api/sync-history/?limit=10&sync_type=org_mapping
+    """
+    limit = int(request.GET.get('limit', 20))
+    sync_type = request.GET.get('sync_type', None)
+    
+    service = SmartDataSyncService()
+    history = service.get_sync_history(limit=limit, sync_type=sync_type)
+    
+    return Response({
+        'history': history,
+        'total': len(history)
+    })
+
+
+@api_view(['POST'])
+def trigger_sync(request):
+    """
+    手动触发数据同步
+    
+    POST /api/trigger-sync/
+    
+    Request body:
+    {
+        "sync_type": "full",  # "full" / "global_org" / "org_mapping"
+        "force": false  # 是否强制同步（忽略时间和指纹检查）
+    }
+    
+    Response:
+    {
+        "success": true,
+        "message": "Sync completed successfully",
+        "results": {...}
+    }
+    """
+    try:
+        sync_type = request.data.get('sync_type', 'full')
+        force = request.data.get('force', False)
+        
+        service = SmartDataSyncService()
+        
+        if sync_type == 'full':
+            results = service.sync_all(triggered_by='manual', force=force)
+        elif sync_type == 'global_org':
+            results = service.sync_global_orgs(triggered_by='manual', force=force)
+        elif sync_type == 'org_mapping':
+            results = service.sync_org_mappings(triggered_by='manual', force=force)
+        else:
+            return Response(
+                {"error": "Invalid sync_type. Must be 'full', 'global_org', or 'org_mapping'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        return Response({
+            "success": True,
+            "message": results.get('message', 'Sync completed'),
+            "results": results
+        })
+        
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] Sync failed: {str(e)}")
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        
+        return Response(
+            {
+                "success": False,
+                "error": str(e),
+                "message": "Sync failed. Please check server logs."
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+@api_view(['GET'])
+def check_for_updates(request):
+    """
+    快速检查是否有数据更新（不执行同步）
+    
+    GET /api/check-for-updates/
+    
+    Response:
+    {
+        "has_updates": true,
+        "reason": "should_sync",
+        "last_sync_time": "2026-01-30T10:00:00Z",
+        "message": "Updates available"
+    }
+    """
+    sync_type = request.GET.get('sync_type', 'org_mapping')
+    
+    service = SmartDataSyncService()
+    should_sync, reason, last_sync = service.should_sync(sync_type, force=False)
+    
+    return Response({
+        "has_updates": should_sync,
+        "reason": reason,
+        "last_sync_time": last_sync.completed_at if last_sync else None,
+        "last_sync_status": last_sync.status if last_sync else None,
+        "message": "Updates available" if should_sync else "No updates needed"
+    })
 
 

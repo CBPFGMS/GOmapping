@@ -48,3 +48,64 @@ class OrgMapping(models.Model):
     class Meta:
         managed = False
         db_table = 'org_mapping'
+
+
+class DataSyncLog(models.Model):
+    """
+    记录每次数据同步的情况
+    用于追踪外部数据更新和同步状态
+    """
+    SYNC_TYPES = [
+        ('global_org', 'Global Organization'),
+        ('org_mapping', 'Organization Mapping'),
+        ('full', 'Full Sync'),
+    ]
+    
+    STATUS_CHOICES = [
+        ('running', 'Running'),
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+        ('no_changes', 'No Changes'),
+    ]
+    
+    sync_id = models.AutoField(primary_key=True)
+    sync_type = models.CharField(max_length=50, choices=SYNC_TYPES)
+    
+    # 时间记录
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    # 数据变化统计
+    records_fetched = models.IntegerField(default=0)
+    records_created = models.IntegerField(default=0)
+    records_updated = models.IntegerField(default=0)
+    records_deleted = models.IntegerField(default=0)
+    
+    # 数据指纹（用于检测变化）
+    data_checksum = models.CharField(max_length=64, null=True, blank=True)
+    
+    # 状态和错误信息
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='running')
+    error_message = models.TextField(blank=True)
+    
+    # 触发方式
+    triggered_by = models.CharField(max_length=50, default='auto')  # 'auto' / 'manual' / 'api'
+    
+    class Meta:
+        db_table = 'data_sync_log'
+        ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=['-started_at']),
+            models.Index(fields=['sync_type', '-started_at']),
+            models.Index(fields=['status']),
+        ]
+    
+    def __str__(self):
+        return f"Sync {self.sync_id}: {self.sync_type} - {self.status}"
+    
+    @property
+    def duration_seconds(self):
+        """计算同步耗时（秒）"""
+        if self.completed_at and self.started_at:
+            return (self.completed_at - self.started_at).total_seconds()
+        return None

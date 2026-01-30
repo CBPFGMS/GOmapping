@@ -13,6 +13,11 @@ function GOsummary() {
     const [expandedUniqueOrgs, setExpandedUniqueOrgs] = useState(new Set());
     const navigate = useNavigate();
 
+    // Sync status state
+    const [syncing, setSyncing] = useState(false);
+    const [syncStatus, setSyncStatus] = useState(null);
+    const [lastSyncTime, setLastSyncTime] = useState(null);
+
     // AI recommendation state
     const [aiRecommendations, setAiRecommendations] = useState({}); // {group_id: {recommendation, reasoning, loading}}
     const [aiLoadingGroups, setAiLoadingGroups] = useState(new Set());
@@ -28,7 +33,11 @@ function GOsummary() {
     const [uniqueJumpToPage, setUniqueJumpToPage] = useState('');
 
     const fetchData = (forceRefresh = false) => {
-        setLoading(true);
+        // Only show loading on first load when there's no cache
+        const hasCachedData = sessionStorage.getItem('go_summary_data');
+        if (!hasCachedData) {
+            setLoading(true);
+        }
 
         // If forceRefresh, clear sessionStorage cache to ensure fresh data
         if (forceRefresh) {
@@ -38,7 +47,7 @@ function GOsummary() {
 
         const refreshParam = forceRefresh ? '&refresh=true' : '';
         const timestamp = new Date().getTime();
-        fetch(`http://localhost:8000/go-summary/?_t=${timestamp}${refreshParam}`)
+        fetch(`http://localhost:8000/api/go-summary/?_t=${timestamp}${refreshParam}`)
             .then(response => {
                 if (!response.ok) {
                     throw new Error('fail to connect server');
@@ -71,35 +80,120 @@ function GOsummary() {
             });
     };
 
+    // Trigger data sync (backend) - ONLY when user clicks Refresh button
+    const triggerSync = async () => {
+        if (syncing || loading) return;
+
+        console.log('🔄 Starting manual sync...');
+        setSyncing(true);
+        setLoading(true);
+
+        try {
+            // Step 1: Trigger backend sync (external API -> database)
+            console.log('📡 Calling backend sync API...');
+            const syncResponse = await fetch('http://localhost:8000/api/trigger-sync/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    sync_type: 'full',  // Sync both APIs
+                    force: true  // Force sync (ignore time limits)
+                })
+            });
+
+            const syncResult = await syncResponse.json();
+
+            if (!syncResult.success) {
+                throw new Error(syncResult.error || 'Sync failed');
+            }
+
+            console.log('✅ Backend sync completed:', syncResult.message);
+
+            // Step 2: Force recalculate duplicates (with refresh=true)
+            console.log('🔄 Recalculating duplicates...');
+            sessionStorage.removeItem('go_summary_data');
+
+            const timestamp = new Date().getTime();
+            const dataResponse = await fetch(`http://localhost:8000/api/go-summary/?_t=${timestamp}&refresh=true`);
+
+            if (!dataResponse.ok) {
+                throw new Error('Failed to fetch updated data');
+            }
+
+            const jsonData = await dataResponse.json();
+
+            // Step 3: Update UI with new data
+            setDuplicateGroups(jsonData.duplicate_groups || []);
+            setUniqueOrgs(jsonData.unique_organizations || []);
+            setSummary(jsonData.summary || {});
+
+            // Save to cache
+            const cacheData = {
+                duplicate_groups: jsonData.duplicate_groups || [],
+                unique_organizations: jsonData.unique_organizations || [],
+                summary: jsonData.summary || {},
+                timestamp: Date.now()
+            };
+            sessionStorage.setItem('go_summary_data', JSON.stringify(cacheData));
+
+            // Fetch updated sync time from database
+            await fetchLastSyncTime();
+
+            // Reset pagination
+            setDupCurrentPage(1);
+            setUniqueCurrentPage(1);
+
+            console.log('✅ Data refresh completed!');
+            alert('✅ Data synced successfully!\n\n' + syncResult.message);
+
+        } catch (err) {
+            console.error('❌ Sync failed:', err);
+            alert('❌ Sync failed: ' + err.message);
+        } finally {
+            setSyncing(false);
+            setLoading(false);
+        }
+    };
+
+    // Fetch last sync time from database
+    const fetchLastSyncTime = async () => {
+        try {
+            const response = await fetch('http://localhost:8000/api/sync-status/');
+            if (response.ok) {
+                const data = await response.json();
+                if (data.last_sync?.time) {
+                    setLastSyncTime(data.last_sync.time);
+                }
+            }
+        } catch (err) {
+            console.error('Failed to fetch sync status:', err);
+        }
+    };
+
     useEffect(() => {
+        // Fetch last sync time from database
+        fetchLastSyncTime();
+
         // Try to load from sessionStorage first (for browser refresh)
         const cachedData = sessionStorage.getItem('go_summary_data');
 
         if (cachedData) {
             try {
                 const parsed = JSON.parse(cachedData);
-                const cacheAge = Date.now() - (parsed.timestamp || 0);
-                const cacheValidDuration = 24 * 60 * 60 * 1000; // 24 hours (only refresh when user clicks "Refresh Data")
-
-                // If cache is still valid, use it without showing loading
-                if (cacheAge < cacheValidDuration) {
-                    console.log('✅ Using cached data from sessionStorage (age: ' + Math.round(cacheAge / 1000) + 's)');
-                    setDuplicateGroups(parsed.duplicate_groups || []);
-                    setUniqueOrgs(parsed.unique_organizations || []);
-                    setSummary(parsed.summary || {});
-                    setLoading(false);
-                    return; // Don't fetch from server
-                } else {
-                    console.log('⏰ Cache expired (age: ' + Math.round(cacheAge / 1000) + 's), fetching fresh data');
-                }
+                console.log('✅ Using cached data from sessionStorage');
+                setDuplicateGroups(parsed.duplicate_groups || []);
+                setUniqueOrgs(parsed.unique_organizations || []);
+                setSummary(parsed.summary || {});
+                setLoading(false);
+                return; // Always use cache on page load
             } catch (e) {
                 console.error('❌ Failed to parse cached data:', e);
             }
-        } else {
-            console.log('📭 No cached data found, fetching from server');
         }
 
-        // If no valid cache, fetch from server
+        // If no cache, fetch from server (first time only)
+        console.log('📭 No cached data found, fetching from server');
         fetchData();
     }, []);
 
@@ -385,36 +479,10 @@ function GOsummary() {
         }
     };
 
-    if (loading) {
-        return (
-            <div className='go-summary-container loading-fullscreen'>
-                <div className='loading-card'>
-                    <div className='loading-spinner'></div>
-                    <h2 className='loading-title'>⏳ Processing Data...</h2>
-                    <p className='loading-subtitle'>We're calculating usage counts and analyzing similarities</p>
-                    <div className='loading-steps'>
-                        <div className='loading-step'>
-                            <span className='step-icon'>✓</span>
-                            <span>Fetching global organizations</span>
-                        </div>
-                        <div className='loading-step active'>
-                            <span className='step-icon'>⟳</span>
-                            <span>Calculating usage statistics</span>
-                        </div>
-                        <div className='loading-step'>
-                            <span className='step-icon'>○</span>
-                            <span>Identifying duplicates</span>
-                        </div>
-                        <div className='loading-step'>
-                            <span className='step-icon'>○</span>
-                            <span>Organizing results</span>
-                        </div>
-                    </div>
-                    <p className='loading-note'>This may take a few moments for large datasets...</p>
-                </div>
-            </div>
-        );
-    }
+    // Don't show full-screen loading, only show in-place loading indicator
+    // if (loading) {
+    //     return loading page...
+    // }
 
     if (error) {
         return (
@@ -440,21 +508,57 @@ function GOsummary() {
             <div className='go-summary-content'>
                 <div className='summary-header'>
                     <h1>🌍 Global Organization Mapping Summary</h1>
-                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', alignItems: 'flex-start' }}>
                         <button
                             className='nav-button'
                             onClick={() => navigate('/mapping-dashboard')}
                         >
                             📊 Check Mapping Dashboard
                         </button>
-                        <button
-                            className='nav-button'
-                            onClick={() => fetchData(true)}
-                            disabled={loading}
-                            style={{ opacity: loading ? 0.6 : 1 }}
-                        >
-                            {loading ? '⏳ Loading...' : '🔄 Refresh Data'}
-                        </button>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', minHeight: '60px' }}>
+                            <button
+                                className='nav-button'
+                                onClick={triggerSync}
+                                disabled={syncing}
+                                style={{
+                                    opacity: syncing ? 0.7 : 1,
+                                    backgroundColor: syncing ? '#ff9800' : undefined,
+                                    minWidth: '180px'
+                                }}
+                            >
+                                {syncing ? '⏳ Syncing & Calculating...' : '🔄 Refresh Data'}
+                            </button>
+                            {lastSyncTime && !syncing && (
+                                <span style={{
+                                    fontSize: '11px',
+                                    color: '#DDD',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    whiteSpace: 'nowrap'
+                                }}>
+                                    <span style={{ color: '#52c41a' }}>●</span>
+                                    Last synced: {new Date(lastSyncTime).toLocaleString('zh-CN', {
+                                        year: 'numeric',
+                                        month: '2-digit',
+                                        day: '2-digit',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        second: '2-digit',
+                                        hour12: false
+                                    })}
+                                </span>
+                            )}
+                            {syncing && (
+                                <span style={{
+                                    fontSize: '12px',
+                                    color: '#ff9800',
+                                    fontWeight: '500'
+                                }}>
+                                    Please wait, this may take 20-30 seconds...
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
 

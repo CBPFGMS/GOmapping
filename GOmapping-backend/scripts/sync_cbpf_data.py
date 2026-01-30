@@ -52,13 +52,27 @@ def upsert_global_orgs(rows, batch_size=1000):
     from django.db import connection
     
     org_data = {}
+    skipped_rows = []  # 记录被跳过的数据
+    
     for row in rows:
         # PF_GLOBAL_ORG API uses ParentOrganizationId as the global org ID
         go_id = parse_int(row.get("ParentOrganizationId"))
         if go_id is None:
+            skipped_rows.append({
+                'reason': 'Missing or invalid ParentOrganizationId',
+                'ParentOrganizationId': row.get("ParentOrganizationId"),
+                'GlobalOrgName': row.get("GlobalOrgName"),
+                'GlobalOrgAcronym': row.get("GlobalOrgAcronym")
+            })
             continue
         name = parse_str(row.get("GlobalOrgName"))
         if not name:
+            skipped_rows.append({
+                'reason': 'Missing GlobalOrgName',
+                'ParentOrganizationId': go_id,
+                'GlobalOrgName': row.get("GlobalOrgName"),
+                'GlobalOrgAcronym': row.get("GlobalOrgAcronym")
+            })
             continue
         acronym = parse_str(row.get("GlobalOrgAcronym")) or None
         # Truncate acronym to 50 chars to fit database field limit
@@ -106,6 +120,22 @@ def upsert_global_orgs(rows, batch_size=1000):
             created_count += 1
     
     connection.commit()
+    
+    # 打印被跳过的数据
+    if skipped_rows:
+        print(f"\n⚠️  GlobalOrg: Skipped {len(skipped_rows)} rows due to data quality issues:")
+        print("-" * 80)
+        for i, skip in enumerate(skipped_rows[:20], 1):  # 只显示前20条
+            print(f"{i}. Reason: {skip['reason']}")
+            print(f"   ParentOrganizationId: {skip.get('ParentOrganizationId')}")
+            print(f"   GlobalOrgName: {skip.get('GlobalOrgName')}")
+            print(f"   GlobalOrgAcronym: {skip.get('GlobalOrgAcronym')}")
+            print()
+        
+        if len(skipped_rows) > 20:
+            print(f"   ... and {len(skipped_rows) - 20} more rows")
+        print("-" * 80)
+    
     return created_count, updated_count
 
 
@@ -116,15 +146,28 @@ def upsert_org_mappings(rows, batch_size=1000):
     mapping_rows = []
     instance_ids = set()
     global_ids = set()
+    skipped_rows = []  # 记录被跳过的数据
 
     for row in rows:
         instance_org_id = parse_int(row.get("OrganizationId"))
         global_org_id = parse_int(row.get("GlobalOrgId"))
         if instance_org_id is None or global_org_id is None:
+            skipped_rows.append({
+                'reason': 'Missing or invalid ID',
+                'OrganizationId': row.get("OrganizationId"),
+                'GlobalOrgId': row.get("GlobalOrgId"),
+                'OrganizationName': row.get("OrganizationName")
+            })
             continue
 
         instance_org_name = parse_str(row.get("OrganizationName"))
         if not instance_org_name:
+            skipped_rows.append({
+                'reason': 'Missing OrganizationName',
+                'OrganizationId': instance_org_id,
+                'GlobalOrgId': global_org_id,
+                'OrganizationName': row.get("OrganizationName")
+            })
             continue
 
         status_raw = parse_str(row.get("DueDiligenceStatus")) or None
@@ -249,6 +292,21 @@ def upsert_org_mappings(rows, batch_size=1000):
             batch_size=batch_size,
         )
 
+    # 打印被跳过的数据
+    if skipped_rows:
+        print(f"\n⚠️  Skipped {len(skipped_rows)} rows due to data quality issues:")
+        print("-" * 80)
+        for i, skip in enumerate(skipped_rows[:20], 1):  # 只显示前20条
+            print(f"{i}. Reason: {skip['reason']}")
+            print(f"   OrganizationId: {skip.get('OrganizationId')}")
+            print(f"   GlobalOrgId: {skip.get('GlobalOrgId')}")
+            print(f"   OrganizationName: {skip.get('OrganizationName')}")
+            print()
+        
+        if len(skipped_rows) > 20:
+            print(f"   ... and {len(skipped_rows) - 20} more rows")
+        print("-" * 80)
+    
     return len(mapping_rows), len(to_create), len(to_update)
 
 
@@ -288,15 +346,27 @@ def main():
 
     print("Fetching global org detail data...")
     detail_rows = fetch_csv_rows(args.detail_url, auth=auth, timeout=args.timeout)
+    print(f"Fetched {len(detail_rows)} rows from API")
     created, updated = upsert_global_orgs(detail_rows)
-    print(f"GlobalOrganization: created={created}, updated={updated}")
+    print(f"\nGlobalOrganization Summary:")
+    print(f"  - Fetched from API: {len(detail_rows)}")
+    print(f"  - Created: {created}")
+    print(f"  - Updated: {updated}")
+    print(f"  - Processed: {created + updated}")
+    print(f"  - Skipped: {len(detail_rows) - (created + updated)}")
 
     print("Fetching org summary data...")
     summary_rows = fetch_csv_rows(args.summary_url, auth=auth, timeout=args.timeout)
+    print(f"Fetched {len(summary_rows)} rows from API")
     total, created, updated = upsert_org_mappings(summary_rows)
-    print(f"OrgMapping: total_rows={total}, created={created}, updated={updated}")
+    print(f"\nOrgMapping Summary:")
+    print(f"  - Fetched from API: {len(summary_rows)}")
+    print(f"  - Valid rows: {total}")
+    print(f"  - Skipped rows: {len(summary_rows) - total}")
+    print(f"  - Created: {created}")
+    print(f"  - Updated: {updated}")
 
-    print("Sync finished.")
+    print("\nSync finished.")
 
 
 if __name__ == "__main__":
