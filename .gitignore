@@ -1,0 +1,64 @@
+# ===========================
+# OS 系统文件
+# ===========================
+.DS_Store
+Thumbs.db
+
+# ===========================
+# IDE 配置
+# ===========================
+.idea/
+.vscode/
+*.iml
+
+# ===========================
+# Python / Django (Backend)
+# ===========================
+GOmapping-backend/__pycache__/
+GOmapping-backend/**/*.py[cod]
+GOmapping-backend/*.pyc
+GOmapping-backend/*.pyo
+GOmapping-backend/*.pyd
+
+# Virtualenv
+GOmapping-backend/venv/
+GOmapping-backend/env/
+GOmapping-backend/.venv/
+GOmapping-backend/.env
+
+# Django local files
+GOmapping-backend/db.sqlite3
+GOmapping-backend/*.log
+
+# Egg / build
+GOmapping-backend/*.egg-info/
+GOmapping-backend/.eggs/
+GOmapping-backend/dist/
+GOmapping-backend/build/
+
+# ===========================
+# Node / Frontend
+# ===========================
+GOmapping-frontend/node_modules/
+GOmapping-frontend/.cache/
+GOmapping-frontend/dist/
+GOmapping-frontend/build/
+GOmapping-frontend/.temp/
+
+# env files (前端)
+GOmapping-frontend/.env
+GOmapping-frontend/.env.*.local
+
+# Lint / TypeScript cache
+GOmapping-frontend/.eslintcache
+GOmapping-frontend/tsconfig.tsbuildinfo
+
+# ===========================
+# Git / Editor 缓存
+# ===========================
+*.swp
+*.swo
+*~
+
+
+.md

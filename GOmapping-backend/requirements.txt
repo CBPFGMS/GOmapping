@@ -1,0 +1,8 @@
+Django>=4.2.0
+djangorestframework>=3.14.0
+pyodbc>=4.0.39
+pandas>=2.0.0
+requests>=2.31.0
+tqdm>=4.66.0
+zhipuai>=2.1.0
+

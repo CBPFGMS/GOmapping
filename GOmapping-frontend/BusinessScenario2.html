@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Scenario 2 – Global Organization Mapping Dashboard</title>
+
+<style>
+    body {font-family:Arial;margin:30px;background:#f4f6f9;}
+    h2 {margin-bottom:15px}
+
+    table {border-collapse:collapse;width:100%;background:white;}
+    th,td {border:1px solid #ccc;padding:8px;font-size:14px;}
+    th {background:#e9eef7;font-weight:bold;}
+
+    .risk-low {background:#c9f7c4;color:#0d6a00;font-weight:bold;}
+    .risk-medium {background:#ffeab3;color:#8a5600;font-weight:600;}
+    .risk-high {background:#ffc6c6;color:#a30000;font-weight:bold;}
+
+    .group-head {background:#dde7ff;font-weight:bold;}
+    .filter-box {margin-bottom:12px;font-size:14px;}
+    select {padding:4px;margin-left:6px;}
+</style>
+</head>
+<body>
+
+<h2>Scenario 2 — GO Mapping Matrix</h2>
+
+<!-- ================= FILTERS ================= -->
+<div class="filter-box">
+    <b>Filter Global_OrgName:</b>
+    <select id="goFilter" onchange="render()"><option value="">All</option></select>
+
+    <b style="margin-left:25px;">Filter PoolFund (Country):</b>
+    <select id="pfFilter" onchange="render()"><option value="">All</option></select>
+
+    <b style="margin-left:25px;">Filter Risk:</b>
+    <select id="riskFilter" onchange="render()">
+        <option value="">All</option><option>LOW</option><option>MEDIUM</option><option>HIGH</option>
+    </select>
+</div>
+
+<table>
+<thead>
+<tr>
+    <th width="240">Global_OrgName</th>
+    <th width="90">Global_Acronym</th>
+    <th width="80">Global_OrgId</th>
+
+    <th width="230">Org_OrgName</th>
+    <th width="90">Org_Acronym</th>
+    <th width="90">InstanceOrgId</th>
+    <th width="120">ParentOrganizationId</th>
+
+    <th width="80">Match%</th>
+    <th width="80">Risk</th>
+
+    <th width="90">PoolFundID</th>
+    <th width="140">PoolFundName</th>
+    <th width="90">Status</th>
+</tr>
+</thead>
+
+<tbody id="rows"></tbody>
+</table>
+
+<script>
+// ===============================================================
+// PoolFund mapping
+// ===============================================================
+const PoolFundName = {
+    20:"South Sudan",
+    52:"Colombia",
+    53:"Ethiopia",
+    59:"Myanmar Humanitarian Fund",
+    60:"Pakistan",
+    62:"Syria",
+    71:"Lebanon",
+    73:"Jordan",
+    16:"Sudan",
+    21:"Somalia",
+    23:"Afghanistan",
+    75:"Nigeria",
+    15:"Sudan (UNDP)",
+    72:"Iraq"
+};
+
+// ===============================================================
+// Data Groups with multiple ORG per GO
+// （这里我给每个 InstanceOrg 加了 Org_Acronym 假数据）
+// ===============================================================
+const data=[
+
+{
+  go:"Action For Development - South Sudan", go_acr:"AFOD", goid:206,
+  orgs:[
+    {name:"Action For Development",          orgAcr:"AFOD-SS", id:3611, match:62, pf:20, status:"Approved"},
+    {name:"Action For Development (Country)",orgAcr:"AFOD-LO", id:3612, match:58, pf:20, status:"Disenrolled"}
+  ]
+},
+{
+  go:"Diócesis de Montelibano", go_acr:"DM", goid:924,
+  orgs:[
+    {name:"Diócesis de Montelibano",               orgAcr:"DM-CO", id:1253, match:79, pf:52, status:"Approved"},
+    {name:"Diocesis de Montelibano – Colombia",    orgAcr:"DM-Col",id:1254, match:82, pf:52, status:"Approved"}
+  ]
+},
+{
+  go:"International Rescue Committee", go_acr:"IRC", goid:1317,
+  orgs:[
+    {name:"Archived International Rescue Committee", orgAcr:"ARCH-IRC", id:2515, match:77, pf:53, status:"Approved"},
+    {name:"IRC – Somalia Response",                  orgAcr:"IRC-SOM",  id:2516, match:88, pf:53, status:"Approved"},
+    {name:"IRC – Kenya Office",                      orgAcr:"IRC-KEN",  id:2517, match:91, pf:53, status:"Approved"}
+  ]
+},
+{
+  go:"Voluntary Service Overseas", go_acr:"VSO", goid:2345,
+  orgs:[
+    {name:"Voluntary Service Overseas Myanmar", orgAcr:"VSO-MMR", id:1130, match:77, pf:59, status:"Approved"},
+    {name:"VSO Nepal Programme",                orgAcr:"VSO-NPL", id:1131, match:69, pf:59, status:"Disenrolled"}
+  ]
+},
+{
+  go:"HANDS Welfare Foundation", go_acr:"HANDS", goid:1160,
+  orgs:[
+    {name:"Health and Nutrition Development Society", orgAcr:"HANDS-PK", id:548, match:20, pf:60, status:"Under Review"},
+    {name:"HANDS Medical Mission",                   orgAcr:"HANDS-MM", id:549, match:33, pf:60, status:"Disenrolled"}
+  ]
+},
+{
+  go:"Syrian Development Organization", go_acr:"SDO", goid:2162,
+  orgs:[
+    {name:"Syria Trust For Development",  orgAcr:"STD",    id:996, match:26, pf:62, status:"Disenrolled"},
+    {name:"Syrian Development Outreach", orgAcr:"SDO-OUT", id:997, match:48, pf:62, status:"Disenrolled"}
+  ]
+},
+{
+  go:"ONG Rescate Internacional", go_acr:"RESCATE", goid:1663,
+  orgs:[
+    {name:"ONG Rescate Syria",       orgAcr:"RESCATE-SY", id:667, match:60, pf:71, status:"Approved"},
+    {name:"ONG Rescate HQ Madrid",   orgAcr:"RESCATE-HQ", id:668, match:74, pf:71, status:"Pending"}
+  ]
+},
+{
+  go:"Right To Play International", go_acr:"RTP", goid:1888,
+  orgs:[
+    {name:"Right To Play - Jordan",   orgAcr:"RTP-JO", id:1477, match:63, pf:73, status:"Approved"},
+    {name:"Right To Play - Regional", orgAcr:"RTP-REG",id:1478, match:58, pf:73, status:"Disenrolled"}
+  ]
+},
+
+// ========== Muslim Hands family ==========
+{
+  go:"Muslim Hands", go_acr:"MH", goid:1571,
+  orgs:[
+    {name:"Muslim Hands United for the Needy", orgAcr:"MHUN", id:4066, match:84, pf:16, status:"Pending"},
+    {name:"Muslim Hands International",        orgAcr:"MHI",  id:729,  match:81, pf:60, status:"Approved"},
+    {name:"Muslim Hands Somalia",             orgAcr:"MH-SOM",id:842,  match:77, pf:21, status:"Disenrolled"}
+  ]
+},
+// ========== Muslim Aid UK cluster ==========
+{
+  go:"Muslim Aid UK", go_acr:"MA", goid:1569,
+  orgs:[
+    {name:"Muslim Aid UK - Somalia", orgAcr:"MA-SOM", id:831,  match:73, pf:21, status:"Approved"},
+    {name:"Muslim Aid UK Pakistan",  orgAcr:"MA-PK",  id:87,   match:68, pf:60, status:"Approved"},
+    {name:"Muslim Aid UK Iraq",      orgAcr:"MA-IQ",  id:2539, match:79, pf:72, status:"Pending"},
+    {name:"Muslim Aid HQ London",    orgAcr:"MA-HQ",  id:365,  match:90, pf:15, status:"Approved"}
+  ]
+},
+// ========== ZOA Refugee Care ==========
+{
+  go:"ZOA Refugee Care", go_acr:"ZOA", goid:2480,
+  orgs:[
+    {name:"ZOA Refugee Care Sudan (UNDP)", orgAcr:"ZOA-SD-U", id:156,  match:88, pf:15, status:"Pending"},
+    {name:"ZOA Refugee Care Sudan",       orgAcr:"ZOA-SD",   id:3867, match:75, pf:16, status:"Under Review"},
+    {name:"ZOA Afghanistan",              orgAcr:"ZOA-AF",   id:365,  match:83, pf:23, status:"Disenrolled"},
+    {name:"ZOA Ethiopia",                 orgAcr:"ZOA-ET",   id:4553, match:78, pf:53, status:"Approved"}
+  ]
+},
+// ========== ZOA International ==========
+{
+  go:"ZOA International", go_acr:"ZOA", goid:2479,
+  orgs:[
+    {name:"ZOA International Nigeria", orgAcr:"ZOA-NG", id:1635, match:91, pf:75, status:"Under Review"},
+    {name:"ZOA Uganda",                orgAcr:"ZOA-UG", id:3491, match:87, pf:75, status:"Approved"},
+    {name:"ZOA Rwanda",                orgAcr:"ZOA-RW", id:2291, match:52, pf:75, status:"Disenrolled"}
+  ]
+}
+];
+
+// ===============================================================
+// Risk logic & rendering
+// ===============================================================
+function getRisk(p){
+    if(p>=85) return "LOW";
+    if(p>=60) return "MEDIUM";
+    return "HIGH";
+}
+
+function render(){
+    const GO = goFilter.value;
+    const PF = pfFilter.value;
+    const RF = riskFilter.value;
+    rows.innerHTML = "";
+
+    data.forEach(grp=>{
+        // 先按 filter 过滤 org 列表
+        let orgList = grp.orgs.filter(o=>{
+            const pfName = PoolFundName[o.pf] || "N/A";
+            const r = getRisk(o.match);
+            if (GO && grp.go !== GO) return false;
+            if (PF && pfName !== PF) return false;
+            if (RF && r !== RF) return false;
+            return true;
+        });
+
+        if(orgList.length === 0) return;
+
+        orgList.forEach((o, idx)=>{
+            const pfName = PoolFundName[o.pf] || "N/A";
+            const r = getRisk(o.match);
+            const cls = r==="LOW" ? "risk-low" : r==="MEDIUM" ? "risk-medium" : "risk-high";
+
+            rows.innerHTML += `
+            <tr>
+                ${idx===0 ? `
+                    <td rowspan="${orgList.length}" class="group-head">${grp.go}</td>
+                    <td rowspan="${orgList.length}" class="group-head">${grp.go_acr}</td>
+                    <td rowspan="${orgList.length}" class="group-head">${grp.goid}</td>
+                ` : ""}
+
+                <td>${o.name}</td>
+                <td>${o.orgAcr}</td>
+                <td>${o.id}</td>
+                <td>NULL</td>
+
+                <td class="${cls}">${o.match}%</td>
+                <td class="${cls}">${r}</td>
+
+                <td>${o.pf ?? ""}</td>
+                <td>${pfName}</td>
+                <td>${o.status}</td>
+            </tr>`;
+        });
+    });
+}
+
+// initialize filters
+(function init(){
+    const goSet = new Set();
+    const pfSet = new Set();
+
+    data.forEach(grp=>{
+        goSet.add(grp.go);
+        grp.orgs.forEach(o=>{
+            const name = PoolFundName[o.pf] || "";
+            if(name) pfSet.add(name);
+        });
+    });
+
+    goSet.forEach(g=>goFilter.innerHTML += `<option>${g}</option>`);
+    pfSet.forEach(f=>pfFilter.innerHTML += `<option>${f}</option>`);
+
+    render();
+})();
+</script>
+
+</body>
+</html>

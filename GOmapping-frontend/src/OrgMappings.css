@@ -1,0 +1,351 @@
+/* ============================================
+   Container and layout
+============================================ */
+.org-mappings-container {
+    width: 100%;
+    min-height: 100vh;
+    padding: 0;
+    margin: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.org-mappings-content {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 30px;
+}
+
+.mappings-header {
+    text-align: center;
+    margin-bottom: 30px;
+    color: white;
+    position: relative;
+}
+
+.back-button {
+    position: absolute;
+    left: 0;
+    top: 10px;
+    padding: 10px 20px;
+    background: rgba(255, 255, 255, 0.95);
+    color: #667eea;
+    border: none;
+    border-radius: 20px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.back-button:hover {
+    background: white;
+    transform: translateX(-3px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.mappings-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.mappings-header h2 {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 10px;
+    opacity: 0.95;
+}
+
+.go-meta {
+    font-size: 1rem;
+    opacity: 0.9;
+    margin-top: 8px;
+}
+
+.go-meta span {
+    margin: 0 10px;
+}
+
+/* ============================================
+   Table wrapper and styles
+============================================ */
+.table-wrapper {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow-x: auto;
+    animation: fadeIn 0.6s ease-in;
+    padding-bottom: 2px;
+}
+
+/* Ensure scrollbar area is clickable */
+.table-wrapper::-webkit-scrollbar {
+    height: 12px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 0 0 16px 16px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 6px;
+    transition: background 0.3s ease;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #764ba2;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.mappings-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+    margin-bottom: 8px;
+}
+
+.mappings-table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.mappings-table th {
+    padding: 18px 16px;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 0.85rem;
+    border-bottom: 3px solid #5568d3;
+    white-space: nowrap;
+}
+
+.mappings-table tbody tr {
+    border-bottom: 1px solid #e0e0e0;
+    transition: all 0.3s ease;
+}
+
+.mappings-table tbody tr:nth-child(even) {
+    background-color: #f8f9fc;
+}
+
+.mappings-table tbody tr:hover {
+    background: linear-gradient(90deg, #f0f4ff 0%, #e8eeff 100%);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+}
+
+.mappings-table td {
+    padding: 16px;
+    text-align: left;
+    color: #333;
+}
+
+/* Group head cells (Global Org columns with rowspan) */
+.group-head {
+    background: #dde7ff !important;
+    font-weight: bold;
+    color: #333 !important;
+    vertical-align: middle;
+    border-right: 2px solid #bbc8f0;
+}
+
+/* No data message */
+.no-data {
+    text-align: center;
+    color: #999;
+    font-style: italic;
+    padding: 40px !important;
+}
+
+/* ============================================
+   Risk level color coding (Match%)
+============================================ */
+.risk-low {
+    background: #c9f7c4;
+    color: #0d6a00;
+    font-weight: bold;
+    text-align: center;
+}
+
+.risk-medium {
+    background: #ffeab3;
+    color: #8a5600;
+    font-weight: 600;
+    text-align: center;
+}
+
+.risk-high {
+    background: #ffc6c6;
+    color: #a30000;
+    font-weight: bold;
+    text-align: center;
+}
+
+.risk-none {
+    color: #95a5a6;
+    text-align: center;
+}
+
+/* ============================================
+   Status badges
+============================================ */
+.status-badge {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.status-approved {
+    background: #c9f7c4;
+    color: #0d6a00;
+}
+
+.status-pending {
+    background: #fff4cc;
+    color: #b8860b;
+}
+
+.status-under-review {
+    background: #ffeab3;
+    color: #8a5600;
+}
+
+.status-disenrolled {
+    background: #ffc6c6;
+    color: #a30000;
+}
+
+/* ============================================
+   Summary footer
+============================================ */
+.summary-footer {
+    margin-top: 20px;
+    padding: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    text-align: center;
+    color: #333;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.summary-footer p {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.summary-footer strong {
+    color: #667eea;
+    font-size: 1.1rem;
+}
+
+/* ============================================
+   Loading and error states
+============================================ */
+.loading,
+.error {
+    padding: 60px 20px;
+    text-align: center;
+    font-size: 1.2rem;
+    border-radius: 16px;
+    margin: 40px auto;
+    max-width: 600px;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.loading {
+    background: white;
+    color: #667eea;
+    box-shadow: 0 10px 40px rgba(102, 126, 234, 0.2);
+}
+
+.loading::before {
+    content: "⏳ ";
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 15px;
+}
+
+.error {
+    background: #fff5f5;
+    color: #e74c3c;
+    border: 2px solid #e74c3c;
+    box-shadow: 0 10px 40px rgba(231, 76, 60, 0.2);
+}
+
+.error::before {
+    content: "⚠️ ";
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 15px;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02);
+    }
+}
+
+/* ============================================
+   Responsive design
+============================================ */
+@media (max-width: 1200px) {
+    .org-mappings-content {
+        padding: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .org-mappings-content {
+        padding: 15px;
+    }
+
+    .mappings-header h1 {
+        font-size: 1.8rem;
+    }
+
+    .mappings-header h2 {
+        font-size: 1.3rem;
+    }
+
+    .mappings-table {
+        font-size: 0.85rem;
+    }
+
+    .mappings-table th,
+    .mappings-table td {
+        padding: 12px 8px;
+    }
+
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    .back-button {
+        position: static;
+        margin-bottom: 15px;
+        display: block;
+        width: fit-content;
+    }
+}

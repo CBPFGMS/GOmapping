@@ -1,0 +1,603 @@
+/* ============================================
+   Container and layout
+============================================ */
+.mapping-dashboard-container {
+    width: 100%;
+    min-height: 100vh;
+    padding: 0;
+    margin: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.mapping-dashboard-content {
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 30px;
+}
+
+.dashboard-header {
+    text-align: center;
+    margin-bottom: 30px;
+    color: white;
+    position: relative;
+}
+
+.back-button {
+    position: absolute;
+    left: 0;
+    top: 10px;
+    padding: 10px 20px;
+    background: rgba(255, 255, 255, 0.95);
+    color: #667eea;
+    border: none;
+    border-radius: 20px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.back-button:hover {
+    background: white;
+    transform: translateX(-3px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.dashboard-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.dashboard-header p {
+    font-size: 1.1rem;
+    opacity: 0.95;
+}
+
+/* ============================================
+   Filter section
+============================================ */
+.filter-section {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    padding: 20px 25px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 25px;
+    align-items: center;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    flex-wrap: wrap;
+}
+
+.filter-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.filter-item label {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.95rem;
+    white-space: nowrap;
+}
+
+.filter-select {
+    padding: 8px 14px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 180px;
+    font-family: inherit;
+}
+
+.filter-select:hover {
+    border-color: #667eea;
+}
+
+.filter-select:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* ============================================
+   Table wrapper
+============================================ */
+.table-wrapper {
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    overflow-x: auto;
+    animation: fadeIn 0.6s ease-in;
+    padding-bottom: 2px;
+}
+
+/* Ensure scrollbar area is clickable */
+.table-wrapper::-webkit-scrollbar {
+    height: 12px;
+}
+
+.table-wrapper::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 0 0 16px 16px;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb {
+    background: #667eea;
+    border-radius: 6px;
+    transition: background 0.3s ease;
+}
+
+.table-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #764ba2;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ============================================
+   Table styles
+============================================ */
+.dashboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+}
+
+.dashboard-table thead {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.dashboard-table th {
+    padding: 16px 12px;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-size: 0.8rem;
+    border-bottom: 3px solid #5568d3;
+    white-space: nowrap;
+}
+
+.dashboard-table tbody tr {
+    border-bottom: 1px solid #e8e8e8;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+/* Style for all rows in a GO group */
+.dashboard-table tbody tr.group-member-row {
+    border-left: 4px solid #667eea;
+    border-right: 4px solid #667eea;
+}
+
+/* Add thick top border to first row of each GO group */
+.dashboard-table tbody tr.group-first-row {
+    border-top: 4px solid #667eea;
+}
+
+/* Add thick bottom border and spacing to last row of each GO group */
+.dashboard-table tbody tr.group-last-row {
+    border-bottom: 4px solid #667eea;
+    margin-bottom: 8px; /* Creates visual gap between groups */
+}
+
+/* Add a visual gap after each group */
+.dashboard-table tbody tr.group-last-row td {
+    padding-bottom: 18px;
+}
+
+.dashboard-table tbody tr.group-first-row td {
+    padding-top: 18px;
+}
+
+.dashboard-table tbody tr:nth-child(even) {
+    background-color: #f8f9fc;
+}
+
+.dashboard-table tbody tr:hover {
+    background: linear-gradient(90deg, #f0f4ff 0%, #e8eeff 100%);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+    position: relative;
+    z-index: 1;
+}
+
+.dashboard-table td {
+    padding: 14px 12px;
+    text-align: left;
+    color: #333;
+    font-size: 0.88rem;
+}
+
+/* ============================================
+   Grouped header styles (merged cells)
+============================================ */
+.group-head {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    font-weight: 700;
+    color: white !important;
+    border-right: 3px solid #5568d3 !important;
+    vertical-align: middle;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+    font-size: 0.95rem;
+    position: relative;
+    box-shadow: 2px 0 8px rgba(102, 126, 234, 0.3);
+}
+
+/* ============================================
+   Risk level styles
+============================================ */
+.risk-low {
+    background: #c9f7c4;
+    color: #0d6a00;
+    font-weight: 700;
+    text-align: center;
+}
+
+.risk-medium {
+    background: #ffeab3;
+    color: #8a5600;
+    font-weight: 600;
+    text-align: center;
+}
+
+.risk-high {
+    background: #ffc6c6;
+    color: #a30000;
+    font-weight: 700;
+    text-align: center;
+}
+
+.risk-none {
+    color: #95a5a6;
+    font-style: italic;
+    text-align: center;
+}
+
+/* ============================================
+   Status badge styles
+============================================ */
+.status-badge {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    white-space: nowrap;
+}
+
+.status-approved {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-pending {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-under-review {
+    background: #d1ecf1;
+    color: #0c5460;
+}
+
+.status-disenrolled {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+/* ============================================
+   Pagination controls
+============================================ */
+.pagination-container {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    padding: 20px 25px;
+    margin-top: 20px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.pagination-info {
+    text-align: center;
+    margin-bottom: 15px;
+    color: #666;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.pagination-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 25px;
+    flex-wrap: wrap;
+}
+
+.items-per-page,
+.jump-to-page {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.items-per-page label,
+.jump-to-page label {
+    font-weight: 600;
+    color: #333;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.page-select,
+.page-input {
+    padding: 8px 12px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    background: white;
+    transition: all 0.3s ease;
+    font-family: inherit;
+}
+
+.page-select {
+    cursor: pointer;
+    min-width: 80px;
+}
+
+.page-input {
+    width: 70px;
+    text-align: center;
+}
+
+.page-select:hover,
+.page-input:hover {
+    border-color: #667eea;
+}
+
+.page-select:focus,
+.page-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.page-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.page-btn {
+    padding: 8px 14px;
+    border: 2px solid #667eea;
+    background: white;
+    color: #667eea;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 40px;
+}
+
+.page-btn:hover:not(:disabled) {
+    background: #667eea;
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.page-btn:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    border-color: #ccc;
+    color: #999;
+}
+
+.jump-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+}
+
+.jump-btn:hover:not(:disabled) {
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+}
+
+.page-info {
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #f0f4ff 0%, #e8eeff 100%);
+    border-radius: 8px;
+    font-weight: 600;
+    color: #667eea;
+    font-size: 0.95rem;
+    white-space: nowrap;
+}
+
+/* ============================================
+   Bottom summary info
+============================================ */
+.summary-footer {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 12px;
+    padding: 18px 25px;
+    margin-top: 20px;
+    text-align: center;
+    color: #333;
+    font-size: 1rem;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.summary-footer strong {
+    color: #667eea;
+    font-size: 1.1rem;
+}
+
+/* ============================================
+   No data state
+============================================ */
+.no-data {
+    text-align: center;
+    padding: 40px;
+    color: #95a5a6;
+    font-size: 1.1rem;
+    font-style: italic;
+}
+
+/* ============================================
+   Loading and error states
+============================================ */
+.loading,
+.error {
+    padding: 60px 20px;
+    text-align: center;
+    font-size: 1.2rem;
+    border-radius: 16px;
+    margin: 40px auto;
+    max-width: 600px;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.loading {
+    background: white;
+    color: #667eea;
+    box-shadow: 0 10px 40px rgba(102, 126, 234, 0.2);
+}
+
+.loading::before {
+    content: "⏳ ";
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 15px;
+}
+
+.error {
+    background: #fff5f5;
+    color: #e74c3c;
+    border: 2px solid #e74c3c;
+    box-shadow: 0 10px 40px rgba(231, 76, 60, 0.2);
+}
+
+.error::before {
+    content: "⚠️ ";
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 15px;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.02);
+    }
+}
+
+/* ============================================
+   Responsive design
+============================================ */
+@media (max-width: 1200px) {
+    .mapping-dashboard-content {
+        padding: 20px;
+    }
+
+    .dashboard-header h1 {
+        font-size: 2rem;
+    }
+
+    .filter-section {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 15px;
+    }
+
+    .filter-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+
+    .filter-select {
+        width: 100%;
+    }
+
+    .pagination-controls {
+        flex-direction: column;
+        gap: 15px;
+    }
+}
+
+@media (max-width: 768px) {
+    .mapping-dashboard-content {
+        padding: 15px;
+    }
+
+    .dashboard-header h1 {
+        font-size: 1.6rem;
+    }
+
+    .back-button {
+        position: static;
+        margin-bottom: 15px;
+    }
+
+    .dashboard-table {
+        font-size: 0.8rem;
+    }
+
+    .dashboard-table th,
+    .dashboard-table td {
+        padding: 10px 8px;
+    }
+    
+    .table-wrapper {
+        overflow-x: auto;
+    }
+
+    .pagination-controls {
+        gap: 12px;
+    }
+
+    .page-buttons {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .items-per-page,
+    .jump-to-page {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
