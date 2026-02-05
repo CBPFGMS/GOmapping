@@ -87,8 +87,8 @@ DATABASES = {
 
         "ENGINE": "mssql",
         "NAME": "gomapping",
-        "USER": "yiyi",
-        "PASSWORD": '',
+        "USER": "demo",
+        "PASSWORD": 'Ocha19911219!',
         "HOST":'OCHAL25109748\\SQLEXPRESS',
         #"PORT": '1433'
         "OPTIONS": {
