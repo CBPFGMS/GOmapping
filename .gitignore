@@ -20,6 +20,8 @@ GOmapping-backend/*.pyc
 GOmapping-backend/*.pyo
 GOmapping-backend/*.pyd
 
+GOmapping-backend/main/settings.py
+
 # Virtualenv
 GOmapping-backend/venv/
 GOmapping-backend/env/
