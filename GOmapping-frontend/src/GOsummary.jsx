@@ -43,6 +43,7 @@ function GOsummary() {
 
     // View toggle state
     const [currentView, setCurrentView] = useState('duplicates'); // 'duplicates' or 'unique'
+    const [groupTabs, setGroupTabs] = useState({}); // {group_id: 'system' | 'ai'}
 
     const fetchData = (forceRefresh = false) => {
         // Only show loading on first load when there's no cache
@@ -675,6 +676,109 @@ function GOsummary() {
         alert(message);
     };
 
+    const getGroupTab = (groupId) => groupTabs[groupId] || 'system';
+
+    const setGroupTab = (groupId, tab) => {
+        setGroupTabs(prev => ({ ...prev, [groupId]: tab }));
+    };
+
+    const renderRecommendationTree = (group, mode = 'system') => {
+        const aiRec = aiRecommendations[group.group_id];
+        const recommendedIdRaw = mode === 'ai' ? aiRec?.recommended_id : group.recommended_master.global_org_id;
+        const recommendedId = Number.parseInt(recommendedIdRaw, 10);
+        const effectiveRecommendedId = Number.isFinite(recommendedId) ? recommendedId : null;
+
+        const targetGlobalOrg = mode === 'system'
+            ? group.recommended_master
+            : group.members.find(m => m.global_org_id === effectiveRecommendedId) || group.recommended_master;
+
+        const showActions = mode === 'system';
+
+        return (
+            <div className='tree-structure'>
+                {group.members.map((member) => {
+                    const isRecommended = effectiveRecommendedId !== null
+                        ? member.global_org_id === effectiveRecommendedId
+                        : member.is_recommended;
+
+                    return (
+                        <div key={member.global_org_id} className='tree-node'>
+                            <div className='tree-node-header'>
+                                {isRecommended ? (
+                                    <span className='status-badge master'>⭐ KEEP</span>
+                                ) : (
+                                    <span className='status-badge merge'>MERGE</span>
+                                )}
+                                <span className='tree-node-id'>#{member.global_org_id} </span>
+                                <span
+                                    className='tree-node-name link-text'
+                                    onClick={() => handleGONameClick(member.global_org_id)}
+                                >
+                                    {member.global_org_name} (global organization)
+                                </span>
+                                <span
+                                    className='usage-badge clickable'
+                                    onClick={() => handleUsageCountClick(member.global_org_id)}
+                                    title="View all mappings"
+                                >
+                                    {member.usage_count} instances
+                                </span>
+                                {showActions && !isRecommended && member.instance_organizations && member.instance_organizations.length > 0 && (
+                                    <button
+                                        className='record-all-btn'
+                                        onClick={() => recordAllDecisions(member, targetGlobalOrg, group)}
+                                        title={`Record all ${member.instance_organizations.length} instances`}
+                                    >
+                                        📝 Record All ({member.instance_organizations.length})
+                                    </button>
+                                )}
+                            </div>
+                            {member.instance_organizations && member.instance_organizations.length > 0 && (
+                                <div className='tree-children'>
+                                    {member.instance_organizations.map((inst, idx) => (
+                                        <div key={inst.instance_org_id || idx} className='tree-child'>
+                                            <span className='tree-branch'>└─</span>
+                                            <span className='inst-org-id'>#{inst.instance_org_id}</span>
+                                            <span className='inst-org-name'>{inst.instance_org_name} </span>
+                                            {inst.instance_org_acronym && (
+                                                <span className='inst-org-acronym'>({inst.instance_org_acronym}) (instance organization)</span>
+                                            )}
+                                            <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
+                                                {inst.match_percent !== null && inst.match_percent !== undefined
+                                                    ? `${Math.round(inst.match_percent)}%`
+                                                    : '—'}
+                                            </span>
+                                            {showActions && !isRecommended && (
+                                                <button
+                                                    className='record-decision-btn'
+                                                    onClick={() => openDecisionModal(inst, member, targetGlobalOrg, group)}
+                                                    title='Record mapping change decision'
+                                                >
+                                                    📝 Record
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                    {member.usage_count > member.instance_organizations.length && (
+                                        <div className='tree-child more-items'>
+                                            <span className='tree-branch'>└─</span>
+                                            <span
+                                                className='link-text'
+                                                onClick={() => handleUsageCountClick(member.global_org_id)}
+                                            >
+                                                ... and {member.usage_count - member.instance_organizations.length} more
+                                            </span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
     // Don't show full-screen loading, only show in-place loading indicator
     // if (loading) {
     //     return loading page...
@@ -920,136 +1024,121 @@ function GOsummary() {
                                                         ⭐ Recommended: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name}
                                                     </div>
                                                 </div>
-                                                <button
-                                                    className={`ai-btn ${aiLoadingGroups.has(group.group_id) ? 'loading' : ''} ${aiRecommendations[group.group_id] ? 'has-result' : ''}`}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        // If already has result, regenerate; otherwise ask AI
-                                                        const shouldRegenerate = !!aiRecommendations[group.group_id];
-                                                        askAI(group, shouldRegenerate);
-                                                    }}
-                                                    disabled={aiLoadingGroups.has(group.group_id)}
-                                                >
-                                                    {aiLoadingGroups.has(group.group_id) ? '🤔 AI Thinking...' :
-                                                        aiRecommendations[group.group_id] ? '🔄 Regenerate AI' : '🤖 Ask AI'}
-                                                </button>
+                                                <span className='meta-item' style={{ marginLeft: '12px' }}>
+                                                    {aiRecommendations[group.group_id] ? '🤖 AI ready' : '🤖 AI not generated'}
+                                                </span>
                                             </div>
 
                                             {expandedGroups.has(group.group_id) && (
                                                 <div className='group-details'>
-                                                    {/* AI Recommendation Display */}
-                                                    {aiRecommendations[group.group_id] && !aiRecommendations[group.group_id].error && (
-                                                        <div className='ai-recommendation-panel'>
-                                                            <div className='ai-header'>
-                                                                <span className='ai-icon'>🤖</span>
-                                                                <h3 className='ai-title'>AI Analysis & Recommendation</h3>
-                                                            </div>
-                                                            <div className='ai-content'>
-                                                                <div className='ai-recommendation'>
-                                                                    <div className='ai-label'>💡 Recommended to Keep:</div>
-                                                                    <div className='ai-value'>
-                                                                        <strong>#{aiRecommendations[group.group_id].recommended_id}</strong> - {aiRecommendations[group.group_id].recommended_name}
-                                                                    </div>
-                                                                </div>
-                                                                <div className='ai-reasoning'>
-                                                                    <div className='ai-label'>📊 Key Factors:</div>
-                                                                    <ul className='ai-reasons-list'>
-                                                                        {aiRecommendations[group.group_id].reasoning.map((reason, idx) => (
-                                                                            <li key={idx}>{reason}</li>
-                                                                        ))}
-                                                                    </ul>
-                                                                </div>
-                                                                {aiRecommendations[group.group_id].analysis && (
-                                                                    <div className='ai-analysis'>
-                                                                        <div className='ai-label'>🔍 Detailed Analysis:</div>
-                                                                        <p className='ai-analysis-text'>{aiRecommendations[group.group_id].analysis}</p>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                    {aiRecommendations[group.group_id]?.error && (
-                                                        <div className='ai-error-panel'>
-                                                            <span className='error-icon'>⚠️</span>
-                                                            <span>{aiRecommendations[group.group_id].error}</span>
-                                                        </div>
-                                                    )}
-                                                    <div className='tree-structure'>
-                                                        {group.members.map((member) => (
-                                                            <div key={member.global_org_id} className='tree-node'>
-                                                                <div className='tree-node-header'>
-                                                                    {member.is_recommended ? (
-                                                                        <span className='status-badge master'>⭐ KEEP</span>
-                                                                    ) : (
-                                                                        <span className='status-badge merge'>MERGE</span>
-                                                                    )}
-                                                                    <span className='tree-node-id'>#{member.global_org_id} </span>
-                                                                    <span
-                                                                        className='tree-node-name link-text'
-                                                                        onClick={() => handleGONameClick(member.global_org_id)}
-                                                                    >
-                                                                        {member.global_org_name} (global orgnization)
-                                                                    </span>
-                                                                    <span
-                                                                        className='usage-badge clickable'
-                                                                        onClick={() => handleUsageCountClick(member.global_org_id)}
-                                                                        title="View all mappings"
-                                                                    >
-                                                                        {member.usage_count} instances
-                                                                    </span>
-                                                                    {!member.is_recommended && member.instance_organizations && member.instance_organizations.length > 0 && (
-                                                                        <button
-                                                                            className='record-all-btn'
-                                                                            onClick={() => recordAllDecisions(member, group.recommended_master, group)}
-                                                                            title={`Record all ${member.instance_organizations.length} instances`}
-                                                                        >
-                                                                            📝 Record All ({member.instance_organizations.length})
-                                                                        </button>
-                                                                    )}
-                                                                </div>
-                                                                {member.instance_organizations && member.instance_organizations.length > 0 && (
-                                                                    <div className='tree-children'>
-                                                                        {member.instance_organizations.map((inst, idx) => (
-                                                                            <div key={inst.instance_org_id || idx} className='tree-child'>
-                                                                                <span className='tree-branch'>└─</span>
-                                                                                <span className='inst-org-id'>#{inst.instance_org_id}</span>
-                                                                                <span className='inst-org-name'>{inst.instance_org_name} </span>
-                                                                                {inst.instance_org_acronym && (
-                                                                                    <span className='inst-org-acronym'>({inst.instance_org_acronym}) (instance orgnization)</span>
-                                                                                )}
-                                                                                <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
-                                                                                    {inst.match_percent !== null && inst.match_percent !== undefined
-                                                                                        ? `${Math.round(inst.match_percent)}%`
-                                                                                        : '—'}
-                                                                                </span>
-                                                                                {/* Record Decision Button - only show if not the recommended one */}
-                                                                                {!member.is_recommended && (
-                                                                                    <button
-                                                                                        className='record-decision-btn'
-                                                                                        onClick={() => openDecisionModal(inst, member, group.recommended_master, group)}
-                                                                                        title='Record mapping change decision'
-                                                                                    >
-                                                                                        📝 Record
-                                                                                    </button>
-                                                                                )}
-                                                                            </div>
-                                                                        ))}
-                                                                        {member.usage_count > member.instance_organizations.length && (
-                                                                            <div className='tree-child more-items'>
-                                                                                <span className='tree-branch'>└─</span>
-                                                                                <span
-                                                                                    className='link-text'
-                                                                                    onClick={() => handleUsageCountClick(member.global_org_id)}
-                                                                                >
-                                                                                    ... and {member.usage_count - member.instance_organizations.length} more
-                                                                                </span>
-                                                                            </div>
-                                                                        )}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ))}
+                                                    <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
+                                                        <button
+                                                            className='expand-all-btn'
+                                                            style={{
+                                                                padding: '8px 14px',
+                                                                background: getGroupTab(group.group_id) === 'system' ? '#5f7bf7' : '#ffffff',
+                                                                color: getGroupTab(group.group_id) === 'system' ? '#fff' : '#5f7bf7',
+                                                                borderColor: '#5f7bf7'
+                                                            }}
+                                                            onClick={() => setGroupTab(group.group_id, 'system')}
+                                                        >
+                                                            🧮 System Algorithm
+                                                        </button>
+                                                        <button
+                                                            className='expand-all-btn'
+                                                            style={{
+                                                                padding: '8px 14px',
+                                                                background: getGroupTab(group.group_id) === 'ai' ? '#5f7bf7' : '#ffffff',
+                                                                color: getGroupTab(group.group_id) === 'ai' ? '#fff' : '#5f7bf7',
+                                                                borderColor: '#5f7bf7'
+                                                            }}
+                                                            onClick={() => setGroupTab(group.group_id, 'ai')}
+                                                        >
+                                                            🤖 AI Model Recommendation
+                                                        </button>
                                                     </div>
+
+                                                    {getGroupTab(group.group_id) === 'system' && (
+                                                        <>
+                                                            <div className='recommended-info' style={{ marginBottom: '12px' }}>
+                                                                ⭐ System Recommendation: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name}
+                                                            </div>
+                                                            {renderRecommendationTree(group, 'system')}
+                                                        </>
+                                                    )}
+
+                                                    {getGroupTab(group.group_id) === 'ai' && (
+                                                        <>
+                                                            {!aiRecommendations[group.group_id] && !aiLoadingGroups.has(group.group_id) && (
+                                                                <div style={{
+                                                                    marginBottom: '14px',
+                                                                    padding: '14px',
+                                                                    border: '1px dashed #8ba1ff',
+                                                                    borderRadius: '10px',
+                                                                    background: 'rgba(95, 123, 247, 0.06)'
+                                                                }}>
+                                                                    <div style={{ marginBottom: '10px', color: '#5f7bf7', fontWeight: 600 }}>
+                                                                        AI recommendation has not been generated for this group.
+                                                                    </div>
+                                                                    <button
+                                                                        className='ai-btn'
+                                                                        onClick={() => askAI(group, false)}
+                                                                    >
+                                                                        🤖 Ask AI
+                                                                    </button>
+                                                                </div>
+                                                            )}
+
+                                                            {aiLoadingGroups.has(group.group_id) && (
+                                                                <div className='ai-recommendation-panel'>
+                                                                    <div className='ai-header'>
+                                                                        <span className='ai-icon'>⏳</span>
+                                                                        <h3 className='ai-title'>AI is analyzing this group...</h3>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {aiRecommendations[group.group_id]?.error && (
+                                                                <div className='ai-error-panel'>
+                                                                    <span className='error-icon'>⚠️</span>
+                                                                    <span>{aiRecommendations[group.group_id].error}</span>
+                                                                </div>
+                                                            )}
+
+                                                            {aiRecommendations[group.group_id] && !aiRecommendations[group.group_id].error && (
+                                                                <>
+                                                                    <div className='recommended-info' style={{ marginBottom: '12px' }}>
+                                                                        🤖 AI Recommendation: #{aiRecommendations[group.group_id].recommended_id} - {aiRecommendations[group.group_id].recommended_name}
+                                                                    </div>
+
+                                                                    {renderRecommendationTree(group, 'ai')}
+
+                                                                    <div className='ai-recommendation-panel' style={{ marginTop: '14px' }}>
+                                                                        <div className='ai-header'>
+                                                                            <span className='ai-icon'>🤖</span>
+                                                                            <h3 className='ai-title'>AI Analysis & Reasons</h3>
+                                                                        </div>
+                                                                        <div className='ai-content'>
+                                                                            <div className='ai-reasoning'>
+                                                                                <div className='ai-label'>📊 Key Factors:</div>
+                                                                                <ul className='ai-reasons-list'>
+                                                                                    {aiRecommendations[group.group_id].reasoning.map((reason, idx) => (
+                                                                                        <li key={idx}>{reason}</li>
+                                                                                    ))}
+                                                                                </ul>
+                                                                            </div>
+                                                                            {aiRecommendations[group.group_id].analysis && (
+                                                                                <div className='ai-analysis'>
+                                                                                    <div className='ai-label'>🔍 Detailed Analysis:</div>
+                                                                                    <p className='ai-analysis-text'>{aiRecommendations[group.group_id].analysis}</p>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
