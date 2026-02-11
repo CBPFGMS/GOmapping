@@ -62,20 +62,27 @@ def go_summary(request):
                 global_org_id__in=go_ids_without_mappings
             ).update(usage_count=0)
         
-        # Run similarity calculation script in background
+        # Run similarity calculation and wait for completion
         try:
             # Get the directory of manage.py
             manage_py_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             
-            # Run the command in background (non-blocking)
-            subprocess.Popen(
+            # Run the command synchronously so response only returns after calculation is done
+            completed = subprocess.run(
                 ['python', 'manage.py', 'calculate_similarity', '--clear', '--threshold', '70'],
                 cwd=manage_py_dir,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False,
                 # On Windows, use creation flag to prevent console window
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
+
+            if completed.returncode != 0:
+                print(f"Warning: Similarity calculation failed with code {completed.returncode}")
+                if completed.stderr:
+                    print(f"stderr: {completed.stderr[:1000]}")
         except Exception as e:
             # Log the error but don't fail the request
             print(f"Warning: Could not start similarity calculation: {e}")
@@ -635,6 +642,20 @@ def trigger_sync(request):
                 status=status.HTTP_400_BAD_REQUEST
             )
         
+        sync_errors = {}
+        for sync_key in ['global_org', 'org_mapping']:
+            sync_result = results.get(sync_key)
+            if sync_result and sync_result.get('error'):
+                sync_errors[sync_key] = sync_result['error']
+
+        if sync_errors:
+            return Response({
+                "success": False,
+                "message": "Sync completed with errors",
+                "errors": sync_errors,
+                "results": results
+            }, status=status.HTTP_200_OK)
+
         return Response({
             "success": True,
             "message": results.get('message', 'Sync completed'),

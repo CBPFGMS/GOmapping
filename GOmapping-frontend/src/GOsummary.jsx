@@ -17,6 +17,10 @@ function GOsummary() {
     const [syncing, setSyncing] = useState(false);
     const [syncStatus, setSyncStatus] = useState(null);
     const [lastSyncTime, setLastSyncTime] = useState(null);
+    const [syncPhase, setSyncPhase] = useState('');
+    const [syncProgress, setSyncProgress] = useState(0);
+    const [syncElapsedSeconds, setSyncElapsedSeconds] = useState(0);
+    const [syncStartedAt, setSyncStartedAt] = useState(null);
 
     // AI recommendation state
     const [aiRecommendations, setAiRecommendations] = useState({}); // {group_id: {recommendation, reasoning, loading}}
@@ -90,11 +94,15 @@ function GOsummary() {
 
     // Trigger data sync (backend) - ONLY when user clicks Refresh button
     const triggerSync = async () => {
-        if (syncing || loading) return;
+        if (syncing) return;
 
         console.log('🔄 Starting manual sync...');
         setSyncing(true);
         setLoading(true);
+        setSyncPhase('Step 1/3: Syncing source data');
+        setSyncProgress(8);
+        setSyncElapsedSeconds(0);
+        setSyncStartedAt(Date.now());
 
         try {
             // Step 1: Trigger backend sync (external API -> database)
@@ -117,6 +125,8 @@ function GOsummary() {
             }
 
             console.log('✅ Backend sync completed:', syncResult.message);
+            setSyncPhase('Step 2/3: Recalculating similarity');
+            setSyncProgress(prev => Math.max(prev, 55));
 
             // Step 2: Force recalculate duplicates (with refresh=true)
             console.log('🔄 Recalculating duplicates...');
@@ -144,15 +154,18 @@ function GOsummary() {
                 timestamp: Date.now()
             };
             sessionStorage.setItem('go_summary_data', JSON.stringify(cacheData));
+            setSyncPhase('Step 3/3: Finalizing and loading results');
+            setSyncProgress(prev => Math.max(prev, 92));
 
-            // Fetch updated sync time from database
-            await fetchLastSyncTime();
+            // Fetch updated sync time from database (poll briefly to avoid stale timestamp)
+            await waitForLatestSyncTime(lastSyncTime);
 
             // Reset pagination
             setDupCurrentPage(1);
             setUniqueCurrentPage(1);
 
             console.log('✅ Data refresh completed!');
+            setSyncProgress(100);
             alert('✅ Data synced successfully!\n\n' + syncResult.message);
 
         } catch (err) {
@@ -161,6 +174,10 @@ function GOsummary() {
         } finally {
             setSyncing(false);
             setLoading(false);
+            setSyncPhase('');
+            setSyncProgress(0);
+            setSyncElapsedSeconds(0);
+            setSyncStartedAt(null);
         }
     };
 
@@ -170,15 +187,52 @@ function GOsummary() {
             const response = await fetch('http://localhost:8000/api/sync-status/');
             if (response.ok) {
                 const data = await response.json();
-                if (data.last_sync?.time) {
-                    setLastSyncTime(data.last_sync.time);
-                }
+                const latestSyncTime = data.last_sync?.time || null;
+                setLastSyncTime(latestSyncTime);
+                return latestSyncTime;
             }
         } catch (err) {
             console.error('Failed to fetch sync status:', err);
         }
+        return null;
     };
 
+    // Poll sync status briefly until latest sync time is visible
+    const waitForLatestSyncTime = async (previousTime, maxAttempts = 10, intervalMs = 1000) => {
+        const prevTs = previousTime ? new Date(previousTime).getTime() : 0;
+
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+                const response = await fetch('http://localhost:8000/api/sync-status/');
+                if (response.ok) {
+                    const data = await response.json();
+                    const latestSyncTime = data.last_sync?.time || null;
+                    const latestTs = latestSyncTime ? new Date(latestSyncTime).getTime() : 0;
+                    const isSyncing = !!data.is_syncing;
+
+                    if (latestSyncTime && latestTs > prevTs) {
+                        setLastSyncTime(latestSyncTime);
+                        return latestSyncTime;
+                    }
+
+                    // Fallback: if backend says not syncing, use whatever latest value is available
+                    if (!isSyncing) {
+                        setLastSyncTime(latestSyncTime);
+                        return latestSyncTime;
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to poll sync status:', err);
+            }
+
+            // Wait before next poll
+            await new Promise(resolve => setTimeout(resolve, intervalMs));
+        }
+
+        return fetchLastSyncTime();
+    };
+
+    //this will be executed once this component rendered to DOM 
     useEffect(() => {
         // Fetch last sync time from database
         fetchLastSyncTime();
@@ -204,6 +258,27 @@ function GOsummary() {
         console.log('📭 No cached data found, fetching from server');
         fetchData();
     }, []);
+
+    // Update elapsed time and smooth progress while syncing
+    useEffect(() => {
+        if (!syncing || !syncStartedAt) return undefined;
+
+        const timerId = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - syncStartedAt) / 1000);
+            setSyncElapsedSeconds(elapsed);
+
+            setSyncProgress(prev => {
+                let cap = 96;
+                if (syncPhase.startsWith('Step 1/3')) cap = 45;
+                else if (syncPhase.startsWith('Step 2/3')) cap = 88;
+
+                if (prev >= cap) return prev;
+                return Math.min(cap, prev + 0.8);
+            });
+        }, 500);
+
+        return () => clearInterval(timerId);
+    }, [syncing, syncStartedAt, syncPhase]);
 
     // ---------- Pagination helpers ----------
     const clampPage = (page, totalPages) => {
@@ -678,354 +753,426 @@ function GOsummary() {
                                 </span>
                             )}
                             {syncing && (
+                                <>
+                                    <span style={{
+                                        fontSize: '12px',
+                                        color: '#ff9800',
+                                        fontWeight: '500'
+                                    }}>
+                                        {syncPhase || 'Sync in progress...'}
+                                    </span>
+                                    <span style={{
+                                        fontSize: '11px',
+                                        color: '#DDD'
+                                    }}>
+                                        Elapsed: {syncElapsedSeconds}s
+                                    </span>
+                                </>
+                            )}
+                            {!syncing && (
                                 <span style={{
-                                    fontSize: '12px',
-                                    color: '#ff9800',
-                                    fontWeight: '500'
+                                    fontSize: '11px',
+                                    color: '#DDD'
                                 }}>
-                                    Please wait, this may take 20-30 seconds...
+                                    Tip: Click "Refresh Data" to sync latest records.
                                 </span>
                             )}
                         </div>
                     </div>
                 </div>
 
-                {/* Summary Statistics */}
-                <div className='summary-stats'>
-                    <div className='stat-box'>
-                        <div className='stat-number'>{summary.total_organizations || 0}</div>
-                        <div className='stat-label'>Total Global Organizations</div>
-                    </div>
-                    <div
-                        className={`stat-box warning clickable ${currentView === 'duplicates' ? 'active' : ''}`}
-                        onClick={() => setCurrentView('duplicates')}
-                        title="Click to view duplicate groups"
-                    >
-                        <div className='stat-number'>{summary.duplicate_groups_count || 0}</div>
-                        <div className='stat-label'>
-                            Duplicate Groups
-                            {currentView === 'duplicates' && <span className='view-indicator'> ✓</span>}
+                {syncing ? (
+                    <div style={{
+                        marginTop: '24px',
+                        padding: '40px 20px',
+                        textAlign: 'center',
+                        color: '#fff',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        borderRadius: '14px',
+                        border: '1px solid rgba(255, 255, 255, 0.2)'
+                    }}>
+                        <div style={{ fontSize: '28px', marginBottom: '10px' }}>⏳</div>
+                        <div style={{ fontSize: '18px', fontWeight: 600 }}>
+                            {syncPhase || 'Sync and similarity calculation in progress'}
+                        </div>
+                        <div style={{
+                            marginTop: '14px',
+                            width: 'min(520px, 90%)',
+                            marginLeft: 'auto',
+                            marginRight: 'auto',
+                            background: 'rgba(255, 255, 255, 0.2)',
+                            borderRadius: '999px',
+                            height: '12px',
+                            overflow: 'hidden'
+                        }}>
+                            <div style={{
+                                width: `${Math.round(syncProgress)}%`,
+                                height: '100%',
+                                background: 'linear-gradient(90deg, #ffb74d 0%, #ff9800 100%)',
+                                transition: 'width 0.4s ease'
+                            }} />
+                        </div>
+                        <div style={{ marginTop: '8px', opacity: 0.9 }}>
+                            Progress: {Math.round(syncProgress)}% · Elapsed: {syncElapsedSeconds}s
                         </div>
                     </div>
-                    <div
-                        className={`stat-box success clickable ${currentView === 'unique' ? 'active' : ''}`}
-                        onClick={() => setCurrentView('unique')}
-                        title="Click to view unique organizations"
-                    >
-                        <div className='stat-number'>{summary.unique_count || 0}</div>
-                        <div className='stat-label'>
-                            Unique Global Organizations
-                            {currentView === 'unique' && <span className='view-indicator'> ✓</span>}
+                ) : (loading && duplicateGroups.length === 0 && uniqueOrgs.length === 0 && !summary.total_organizations) ? (
+                    <div style={{
+                        marginTop: '24px',
+                        padding: '26px 20px',
+                        textAlign: 'center',
+                        color: '#fff',
+                        background: 'rgba(255, 255, 255, 0.08)',
+                        borderRadius: '14px',
+                        border: '1px solid rgba(255, 255, 255, 0.2)'
+                    }}>
+                        <div style={{ fontSize: '16px', fontWeight: 600 }}>
+                            No data loaded yet.
+                        </div>
+                        <div style={{ marginTop: '8px', opacity: 0.9 }}>
+                            Please click "Refresh Data" to run sync and generate the latest summary.
                         </div>
                     </div>
-                </div>
-
-                {/* Duplicate Groups */}
-                {currentView === 'duplicates' && duplicateGroups.length > 0 && (
-                    <div className='section'>
-                        <div className='section-header'>
-                            <h2 className='section-title'>
-                                🔄 Duplicate Groups ({duplicateGroups.length})
-                            </h2>
-                            <button
-                                className='expand-all-btn'
-                                onClick={toggleAllGroups}
+                ) : (
+                    <>
+                        {/* Summary Statistics */}
+                        <div className='summary-stats'>
+                            <div className='stat-box'>
+                                <div className='stat-number'>{summary.total_organizations || 0}</div>
+                                <div className='stat-label'>Total Global Organizations</div>
+                            </div>
+                            <div
+                                className={`stat-box warning clickable ${currentView === 'duplicates' ? 'active' : ''}`}
+                                onClick={() => setCurrentView('duplicates')}
+                                title="Click to view duplicate groups"
                             >
-                                {expandedGroups.size === duplicateGroups.length ? '📕 Collapse All' : '📖 Expand All'}
-                            </button>
+                                <div className='stat-number'>{summary.duplicate_groups_count || 0}</div>
+                                <div className='stat-label'>
+                                    Duplicate Groups
+                                    {currentView === 'duplicates' && <span className='view-indicator'> ✓</span>}
+                                </div>
+                            </div>
+                            <div
+                                className={`stat-box success clickable ${currentView === 'unique' ? 'active' : ''}`}
+                                onClick={() => setCurrentView('unique')}
+                                title="Click to view unique organizations"
+                            >
+                                <div className='stat-number'>{summary.unique_count || 0}</div>
+                                <div className='stat-label'>
+                                    Unique Global Organizations
+                                    {currentView === 'unique' && <span className='view-indicator'> ✓</span>}
+                                </div>
+                            </div>
                         </div>
-                        <PaginationControls
-                            totalItems={duplicateGroups.length}
-                            currentPage={safeDupPage}
-                            itemsPerPage={dupItemsPerPage}
-                            setCurrentPage={setDupCurrentPage}
-                            jumpToPage={dupJumpToPage}
-                            setJumpToPage={setDupJumpToPage}
-                            setItemsPerPage={setDupItemsPerPage}
-                            labelPrefix='Groups per page'
-                        />
-                        <div className='groups-list'>
-                            {paginatedDuplicateGroups.map((group) => (
-                                <div key={group.group_id} className='group-card'>
-                                    <div
-                                        className='group-header'
-                                    >
-                                        <div
-                                            className='group-header-main'
-                                            onClick={() => toggleGroup(group.group_id)}
-                                        >
-                                            <div className='group-title'>
-                                                <span className='group-icon'>
-                                                    {expandedGroups.has(group.group_id) ? '▼' : '▶'}
-                                                </span>
-                                                <span className='group-name'>{group.group_name}</span>
-                                                <span className={`similarity-badge ${getSimilarityClass(group.max_similarity)}`}>
-                                                    {group.max_similarity.toFixed(1)}% similar
-                                                </span>
-                                            </div>
-                                            <div className='group-meta'>
-                                                <span className='meta-item'>
-                                                    {group.total_members} members
-                                                </span>
-                                                <span className='meta-item'>
-                                                    {group.total_instances} instances
-                                                </span>
-                                            </div>
-                                            <div className='recommended-info'>
-                                                ⭐ Recommended: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name}
-                                            </div>
-                                        </div>
-                                        <button
-                                            className={`ai-btn ${aiLoadingGroups.has(group.group_id) ? 'loading' : ''} ${aiRecommendations[group.group_id] ? 'has-result' : ''}`}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                // If already has result, regenerate; otherwise ask AI
-                                                const shouldRegenerate = !!aiRecommendations[group.group_id];
-                                                askAI(group, shouldRegenerate);
-                                            }}
-                                            disabled={aiLoadingGroups.has(group.group_id)}
-                                        >
-                                            {aiLoadingGroups.has(group.group_id) ? '🤔 AI Thinking...' :
-                                                aiRecommendations[group.group_id] ? '🔄 Regenerate AI' : '🤖 Ask AI'}
-                                        </button>
-                                    </div>
 
-                                    {expandedGroups.has(group.group_id) && (
-                                        <div className='group-details'>
-                                            {/* AI Recommendation Display */}
-                                            {aiRecommendations[group.group_id] && !aiRecommendations[group.group_id].error && (
-                                                <div className='ai-recommendation-panel'>
-                                                    <div className='ai-header'>
-                                                        <span className='ai-icon'>🤖</span>
-                                                        <h3 className='ai-title'>AI Analysis & Recommendation</h3>
+                        {/* Duplicate Groups */}
+                        {currentView === 'duplicates' && duplicateGroups.length > 0 && (
+                            <div className='section'>
+                                <div className='section-header'>
+                                    <h2 className='section-title'>
+                                        🔄 Duplicate Groups ({duplicateGroups.length})
+                                    </h2>
+                                    <button
+                                        className='expand-all-btn'
+                                        onClick={toggleAllGroups}
+                                    >
+                                        {expandedGroups.size === duplicateGroups.length ? '📕 Collapse All' : '📖 Expand All'}
+                                    </button>
+                                </div>
+                                <PaginationControls
+                                    totalItems={duplicateGroups.length}
+                                    currentPage={safeDupPage}
+                                    itemsPerPage={dupItemsPerPage}
+                                    setCurrentPage={setDupCurrentPage}
+                                    jumpToPage={dupJumpToPage}
+                                    setJumpToPage={setDupJumpToPage}
+                                    setItemsPerPage={setDupItemsPerPage}
+                                    labelPrefix='Groups per page'
+                                />
+                                <div className='groups-list'>
+                                    {paginatedDuplicateGroups.map((group) => (
+                                        <div key={group.group_id} className='group-card'>
+                                            <div
+                                                className='group-header'
+                                            >
+                                                <div
+                                                    className='group-header-main'
+                                                    onClick={() => toggleGroup(group.group_id)}
+                                                >
+                                                    <div className='group-title'>
+                                                        <span className='group-icon'>
+                                                            {expandedGroups.has(group.group_id) ? '▼' : '▶'}
+                                                        </span>
+                                                        <span className='group-name'>{group.group_name}</span>
+                                                        <span className={`similarity-badge ${getSimilarityClass(group.max_similarity)}`}>
+                                                            {group.max_similarity.toFixed(1)}% similar
+                                                        </span>
                                                     </div>
-                                                    <div className='ai-content'>
-                                                        <div className='ai-recommendation'>
-                                                            <div className='ai-label'>💡 Recommended to Keep:</div>
-                                                            <div className='ai-value'>
-                                                                <strong>#{aiRecommendations[group.group_id].recommended_id}</strong> - {aiRecommendations[group.group_id].recommended_name}
-                                                            </div>
-                                                        </div>
-                                                        <div className='ai-reasoning'>
-                                                            <div className='ai-label'>📊 Key Factors:</div>
-                                                            <ul className='ai-reasons-list'>
-                                                                {aiRecommendations[group.group_id].reasoning.map((reason, idx) => (
-                                                                    <li key={idx}>{reason}</li>
-                                                                ))}
-                                                            </ul>
-                                                        </div>
-                                                        {aiRecommendations[group.group_id].analysis && (
-                                                            <div className='ai-analysis'>
-                                                                <div className='ai-label'>🔍 Detailed Analysis:</div>
-                                                                <p className='ai-analysis-text'>{aiRecommendations[group.group_id].analysis}</p>
-                                                            </div>
-                                                        )}
+                                                    <div className='group-meta'>
+                                                        <span className='meta-item'>
+                                                            {group.total_members} members
+                                                        </span>
+                                                        <span className='meta-item'>
+                                                            {group.total_instances} instances
+                                                        </span>
+                                                    </div>
+                                                    <div className='recommended-info'>
+                                                        ⭐ Recommended: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name}
                                                     </div>
                                                 </div>
-                                            )}
-                                            {aiRecommendations[group.group_id]?.error && (
-                                                <div className='ai-error-panel'>
-                                                    <span className='error-icon'>⚠️</span>
-                                                    <span>{aiRecommendations[group.group_id].error}</span>
-                                                </div>
-                                            )}
-                                            <div className='tree-structure'>
-                                                {group.members.map((member) => (
-                                                    <div key={member.global_org_id} className='tree-node'>
-                                                        <div className='tree-node-header'>
-                                                            {member.is_recommended ? (
-                                                                <span className='status-badge master'>⭐ KEEP</span>
-                                                            ) : (
-                                                                <span className='status-badge merge'>MERGE</span>
-                                                            )}
-                                                            <span className='tree-node-id'>#{member.global_org_id} </span>
-                                                            <span
-                                                                className='tree-node-name link-text'
-                                                                onClick={() => handleGONameClick(member.global_org_id)}
-                                                            >
-                                                                {member.global_org_name} (global orgnization)
-                                                            </span>
-                                                            <span
-                                                                className='usage-badge clickable'
-                                                                onClick={() => handleUsageCountClick(member.global_org_id)}
-                                                                title="View all mappings"
-                                                            >
-                                                                {member.usage_count} instances
-                                                            </span>
-                                                            {!member.is_recommended && member.instance_organizations && member.instance_organizations.length > 0 && (
-                                                                <button
-                                                                    className='record-all-btn'
-                                                                    onClick={() => recordAllDecisions(member, group.recommended_master, group)}
-                                                                    title={`Record all ${member.instance_organizations.length} instances`}
-                                                                >
-                                                                    📝 Record All ({member.instance_organizations.length})
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                        {member.instance_organizations && member.instance_organizations.length > 0 && (
-                                                            <div className='tree-children'>
-                                                                {member.instance_organizations.map((inst, idx) => (
-                                                                    <div key={inst.instance_org_id || idx} className='tree-child'>
-                                                                        <span className='tree-branch'>└─</span>
-                                                                        <span className='inst-org-id'>#{inst.instance_org_id}</span>
-                                                                        <span className='inst-org-name'>{inst.instance_org_name} </span>
-                                                                        {inst.instance_org_acronym && (
-                                                                            <span className='inst-org-acronym'>({inst.instance_org_acronym}) (instance orgnization)</span>
-                                                                        )}
-                                                                        <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
-                                                                            {inst.match_percent !== null && inst.match_percent !== undefined
-                                                                                ? `${Math.round(inst.match_percent)}%`
-                                                                                : '—'}
-                                                                        </span>
-                                                                        {/* Record Decision Button - only show if not the recommended one */}
-                                                                        {!member.is_recommended && (
-                                                                            <button
-                                                                                className='record-decision-btn'
-                                                                                onClick={() => openDecisionModal(inst, member, group.recommended_master, group)}
-                                                                                title='Record mapping change decision'
-                                                                            >
-                                                                                📝 Record
-                                                                            </button>
-                                                                        )}
+                                                <button
+                                                    className={`ai-btn ${aiLoadingGroups.has(group.group_id) ? 'loading' : ''} ${aiRecommendations[group.group_id] ? 'has-result' : ''}`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        // If already has result, regenerate; otherwise ask AI
+                                                        const shouldRegenerate = !!aiRecommendations[group.group_id];
+                                                        askAI(group, shouldRegenerate);
+                                                    }}
+                                                    disabled={aiLoadingGroups.has(group.group_id)}
+                                                >
+                                                    {aiLoadingGroups.has(group.group_id) ? '🤔 AI Thinking...' :
+                                                        aiRecommendations[group.group_id] ? '🔄 Regenerate AI' : '🤖 Ask AI'}
+                                                </button>
+                                            </div>
+
+                                            {expandedGroups.has(group.group_id) && (
+                                                <div className='group-details'>
+                                                    {/* AI Recommendation Display */}
+                                                    {aiRecommendations[group.group_id] && !aiRecommendations[group.group_id].error && (
+                                                        <div className='ai-recommendation-panel'>
+                                                            <div className='ai-header'>
+                                                                <span className='ai-icon'>🤖</span>
+                                                                <h3 className='ai-title'>AI Analysis & Recommendation</h3>
+                                                            </div>
+                                                            <div className='ai-content'>
+                                                                <div className='ai-recommendation'>
+                                                                    <div className='ai-label'>💡 Recommended to Keep:</div>
+                                                                    <div className='ai-value'>
+                                                                        <strong>#{aiRecommendations[group.group_id].recommended_id}</strong> - {aiRecommendations[group.group_id].recommended_name}
                                                                     </div>
-                                                                ))}
-                                                                {member.usage_count > member.instance_organizations.length && (
-                                                                    <div className='tree-child more-items'>
-                                                                        <span className='tree-branch'>└─</span>
-                                                                        <span
-                                                                            className='link-text'
-                                                                            onClick={() => handleUsageCountClick(member.global_org_id)}
-                                                                        >
-                                                                            ... and {member.usage_count - member.instance_organizations.length} more
-                                                                        </span>
+                                                                </div>
+                                                                <div className='ai-reasoning'>
+                                                                    <div className='ai-label'>📊 Key Factors:</div>
+                                                                    <ul className='ai-reasons-list'>
+                                                                        {aiRecommendations[group.group_id].reasoning.map((reason, idx) => (
+                                                                            <li key={idx}>{reason}</li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                                {aiRecommendations[group.group_id].analysis && (
+                                                                    <div className='ai-analysis'>
+                                                                        <div className='ai-label'>🔍 Detailed Analysis:</div>
+                                                                        <p className='ai-analysis-text'>{aiRecommendations[group.group_id].analysis}</p>
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                        )}
+                                                        </div>
+                                                    )}
+                                                    {aiRecommendations[group.group_id]?.error && (
+                                                        <div className='ai-error-panel'>
+                                                            <span className='error-icon'>⚠️</span>
+                                                            <span>{aiRecommendations[group.group_id].error}</span>
+                                                        </div>
+                                                    )}
+                                                    <div className='tree-structure'>
+                                                        {group.members.map((member) => (
+                                                            <div key={member.global_org_id} className='tree-node'>
+                                                                <div className='tree-node-header'>
+                                                                    {member.is_recommended ? (
+                                                                        <span className='status-badge master'>⭐ KEEP</span>
+                                                                    ) : (
+                                                                        <span className='status-badge merge'>MERGE</span>
+                                                                    )}
+                                                                    <span className='tree-node-id'>#{member.global_org_id} </span>
+                                                                    <span
+                                                                        className='tree-node-name link-text'
+                                                                        onClick={() => handleGONameClick(member.global_org_id)}
+                                                                    >
+                                                                        {member.global_org_name} (global orgnization)
+                                                                    </span>
+                                                                    <span
+                                                                        className='usage-badge clickable'
+                                                                        onClick={() => handleUsageCountClick(member.global_org_id)}
+                                                                        title="View all mappings"
+                                                                    >
+                                                                        {member.usage_count} instances
+                                                                    </span>
+                                                                    {!member.is_recommended && member.instance_organizations && member.instance_organizations.length > 0 && (
+                                                                        <button
+                                                                            className='record-all-btn'
+                                                                            onClick={() => recordAllDecisions(member, group.recommended_master, group)}
+                                                                            title={`Record all ${member.instance_organizations.length} instances`}
+                                                                        >
+                                                                            📝 Record All ({member.instance_organizations.length})
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                                {member.instance_organizations && member.instance_organizations.length > 0 && (
+                                                                    <div className='tree-children'>
+                                                                        {member.instance_organizations.map((inst, idx) => (
+                                                                            <div key={inst.instance_org_id || idx} className='tree-child'>
+                                                                                <span className='tree-branch'>└─</span>
+                                                                                <span className='inst-org-id'>#{inst.instance_org_id}</span>
+                                                                                <span className='inst-org-name'>{inst.instance_org_name} </span>
+                                                                                {inst.instance_org_acronym && (
+                                                                                    <span className='inst-org-acronym'>({inst.instance_org_acronym}) (instance orgnization)</span>
+                                                                                )}
+                                                                                <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
+                                                                                    {inst.match_percent !== null && inst.match_percent !== undefined
+                                                                                        ? `${Math.round(inst.match_percent)}%`
+                                                                                        : '—'}
+                                                                                </span>
+                                                                                {/* Record Decision Button - only show if not the recommended one */}
+                                                                                {!member.is_recommended && (
+                                                                                    <button
+                                                                                        className='record-decision-btn'
+                                                                                        onClick={() => openDecisionModal(inst, member, group.recommended_master, group)}
+                                                                                        title='Record mapping change decision'
+                                                                                    >
+                                                                                        📝 Record
+                                                                                    </button>
+                                                                                )}
+                                                                            </div>
+                                                                        ))}
+                                                                        {member.usage_count > member.instance_organizations.length && (
+                                                                            <div className='tree-child more-items'>
+                                                                                <span className='tree-branch'>└─</span>
+                                                                                <span
+                                                                                    className='link-text'
+                                                                                    onClick={() => handleUsageCountClick(member.global_org_id)}
+                                                                                >
+                                                                                    ... and {member.usage_count - member.instance_organizations.length} more
+                                                                                </span>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
                                                     </div>
-                                                ))}
-                                            </div>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
-                        {/* Bottom pagination for Duplicate Groups */}
-                        <PaginationControls
-                            totalItems={duplicateGroups.length}
-                            currentPage={safeDupPage}
-                            itemsPerPage={dupItemsPerPage}
-                            setCurrentPage={setDupCurrentPage}
-                            jumpToPage={dupJumpToPage}
-                            setJumpToPage={setDupJumpToPage}
-                            setItemsPerPage={setDupItemsPerPage}
-                            labelPrefix='Groups per page'
-                        />
-                    </div>
-                )}
+                                {/* Bottom pagination for Duplicate Groups */}
+                                <PaginationControls
+                                    totalItems={duplicateGroups.length}
+                                    currentPage={safeDupPage}
+                                    itemsPerPage={dupItemsPerPage}
+                                    setCurrentPage={setDupCurrentPage}
+                                    jumpToPage={dupJumpToPage}
+                                    setJumpToPage={setDupJumpToPage}
+                                    setItemsPerPage={setDupItemsPerPage}
+                                    labelPrefix='Groups per page'
+                                />
+                            </div>
+                        )}
 
-                {/* Unique Organizations */}
-                {currentView === 'unique' && uniqueOrgs.length > 0 && (
-                    <div className='section'>
-                        <div className='section-header'>
-                            <h2 className='section-title'>
-                                ✅ Unique Global Organizations ({uniqueOrgs.length})
-                            </h2>
-                            <button
-                                className='expand-all-btn'
-                                onClick={toggleAllUniqueOrgs}
-                            >
-                                {expandedUniqueOrgs.size === uniqueOrgs.length ? '📕 Collapse All' : '📖 Expand All'}
-                            </button>
-                        </div>
-                        <PaginationControls
-                            totalItems={uniqueOrgs.length}
-                            currentPage={safeUniquePage}
-                            itemsPerPage={uniqueItemsPerPage}
-                            setCurrentPage={setUniqueCurrentPage}
-                            jumpToPage={uniqueJumpToPage}
-                            setJumpToPage={setUniqueJumpToPage}
-                            setItemsPerPage={setUniqueItemsPerPage}
-                            labelPrefix='Orgs per page'
-                        />
-                        <div className='unique-list'>
-                            {paginatedUniqueOrgs.map((org) => (
-                                <div key={org.global_org_id} className='unique-org-card'>
-                                    <div
-                                        className='unique-org-header'
-                                        onClick={() => toggleUniqueOrg(org.global_org_id)}
+                        {/* Unique Organizations */}
+                        {currentView === 'unique' && uniqueOrgs.length > 0 && (
+                            <div className='section'>
+                                <div className='section-header'>
+                                    <h2 className='section-title'>
+                                        ✅ Unique Global Organizations ({uniqueOrgs.length})
+                                    </h2>
+                                    <button
+                                        className='expand-all-btn'
+                                        onClick={toggleAllUniqueOrgs}
                                     >
-                                        <span className='unique-org-icon'>
-                                            {expandedUniqueOrgs.has(org.global_org_id) ? '▼' : '▶'}
-                                        </span>
-                                        <span className='unique-id'>#{org.global_org_id}</span>
-                                        <span
-                                            className='link-text'
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleGONameClick(org.global_org_id);
-                                            }}
-                                        >
-                                            {org.global_org_name}
-                                        </span>
-                                        <span
-                                            className='usage-badge clickable'
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                handleUsageCountClick(org.global_org_id);
-                                            }}
-                                            title="View all mappings"
-                                        >
-                                            {org.usage_count} instances
-                                        </span>
-                                    </div>
-                                    {expandedUniqueOrgs.has(org.global_org_id) && org.instance_organizations && org.instance_organizations.length > 0 && (
-                                        <div className='unique-org-details'>
-                                            <div className='tree-children'>
-                                                {org.instance_organizations.map((inst, idx) => (
-                                                    <div key={inst.instance_org_id || idx} className='tree-child'>
-                                                        <span className='tree-branch'>└─</span>
-                                                        <span className='inst-org-id'>#{inst.instance_org_id}</span>
-                                                        <span className='inst-org-name'>{inst.instance_org_name} </span>
-                                                        {inst.instance_org_acronym && (
-                                                            <span className='inst-org-acronym'>({inst.instance_org_acronym}) (instance orgnization)</span>
-                                                        )}
-                                                        <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
-                                                            {inst.match_percent !== null && inst.match_percent !== undefined
-                                                                ? `${Math.round(inst.match_percent)}%`
-                                                                : '—'}
-                                                        </span>
-                                                    </div>
-                                                ))}
-                                                {org.usage_count > org.instance_organizations.length && (
-                                                    <div className='tree-child more-items'>
-                                                        <span className='tree-branch'>└─</span>
-                                                        <span
-                                                            className='link-text'
-                                                            onClick={() => handleUsageCountClick(org.global_org_id)}
-                                                        >
-                                                            ... and {org.usage_count - org.instance_organizations.length} more
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
+                                        {expandedUniqueOrgs.size === uniqueOrgs.length ? '📕 Collapse All' : '📖 Expand All'}
+                                    </button>
                                 </div>
-                            ))}
-                        </div>
-                        {/* Bottom pagination for Unique Organizations */}
-                        <PaginationControls
-                            totalItems={uniqueOrgs.length}
-                            currentPage={safeUniquePage}
-                            itemsPerPage={uniqueItemsPerPage}
-                            setCurrentPage={setUniqueCurrentPage}
-                            jumpToPage={uniqueJumpToPage}
-                            setJumpToPage={setUniqueJumpToPage}
-                            setItemsPerPage={setUniqueItemsPerPage}
-                            labelPrefix='Orgs per page'
-                        />
-                    </div>
+                                <PaginationControls
+                                    totalItems={uniqueOrgs.length}
+                                    currentPage={safeUniquePage}
+                                    itemsPerPage={uniqueItemsPerPage}
+                                    setCurrentPage={setUniqueCurrentPage}
+                                    jumpToPage={uniqueJumpToPage}
+                                    setJumpToPage={setUniqueJumpToPage}
+                                    setItemsPerPage={setUniqueItemsPerPage}
+                                    labelPrefix='Orgs per page'
+                                />
+                                <div className='unique-list'>
+                                    {paginatedUniqueOrgs.map((org) => (
+                                        <div key={org.global_org_id} className='unique-org-card'>
+                                            <div
+                                                className='unique-org-header'
+                                                onClick={() => toggleUniqueOrg(org.global_org_id)}
+                                            >
+                                                <span className='unique-org-icon'>
+                                                    {expandedUniqueOrgs.has(org.global_org_id) ? '▼' : '▶'}
+                                                </span>
+                                                <span className='unique-id'>#{org.global_org_id}</span>
+                                                <span
+                                                    className='link-text'
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleGONameClick(org.global_org_id);
+                                                    }}
+                                                >
+                                                    {org.global_org_name}
+                                                </span>
+                                                <span
+                                                    className='usage-badge clickable'
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleUsageCountClick(org.global_org_id);
+                                                    }}
+                                                    title="View all mappings"
+                                                >
+                                                    {org.usage_count} instances
+                                                </span>
+                                            </div>
+                                            {expandedUniqueOrgs.has(org.global_org_id) && org.instance_organizations && org.instance_organizations.length > 0 && (
+                                                <div className='unique-org-details'>
+                                                    <div className='tree-children'>
+                                                        {org.instance_organizations.map((inst, idx) => (
+                                                            <div key={inst.instance_org_id || idx} className='tree-child'>
+                                                                <span className='tree-branch'>└─</span>
+                                                                <span className='inst-org-id'>#{inst.instance_org_id}</span>
+                                                                <span className='inst-org-name'>{inst.instance_org_name} </span>
+                                                                {inst.instance_org_acronym && (
+                                                                    <span className='inst-org-acronym'>({inst.instance_org_acronym}) (instance orgnization)</span>
+                                                                )}
+                                                                <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
+                                                                    {inst.match_percent !== null && inst.match_percent !== undefined
+                                                                        ? `${Math.round(inst.match_percent)}%`
+                                                                        : '—'}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                        {org.usage_count > org.instance_organizations.length && (
+                                                            <div className='tree-child more-items'>
+                                                                <span className='tree-branch'>└─</span>
+                                                                <span
+                                                                    className='link-text'
+                                                                    onClick={() => handleUsageCountClick(org.global_org_id)}
+                                                                >
+                                                                    ... and {org.usage_count - org.instance_organizations.length} more
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                {/* Bottom pagination for Unique Organizations */}
+                                <PaginationControls
+                                    totalItems={uniqueOrgs.length}
+                                    currentPage={safeUniquePage}
+                                    itemsPerPage={uniqueItemsPerPage}
+                                    setCurrentPage={setUniqueCurrentPage}
+                                    jumpToPage={uniqueJumpToPage}
+                                    setJumpToPage={setUniqueJumpToPage}
+                                    setItemsPerPage={setUniqueItemsPerPage}
+                                    labelPrefix='Orgs per page'
+                                />
+                            </div>
+                        )}
+                    </>
                 )}
 
                 {/* Merge Decision Modal */}
