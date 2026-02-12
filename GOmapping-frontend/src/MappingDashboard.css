@@ -23,10 +23,15 @@
     position: relative;
 }
 
+.header-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
 .back-button {
-    position: absolute;
-    left: 0;
-    top: 10px;
     padding: 10px 20px;
     background: rgba(255, 255, 255, 0.95);
     color: #667eea;
@@ -43,6 +48,34 @@
     background: white;
     transform: translateX(-3px);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.export-csv-button {
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #27ae60 0%, #229954 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 1rem;
+    transition: all 0.2s ease;
+    margin-left: auto;
+}
+
+.export-csv-button:hover:not(:disabled) {
+    background: linear-gradient(135deg, #20c997 0%, #28a745 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+}
+
+.export-csv-button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.export-csv-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .dashboard-header h1 {
@@ -200,7 +233,8 @@
 /* Add thick bottom border and spacing to last row of each GO group */
 .dashboard-table tbody tr.group-last-row {
     border-bottom: 4px solid #667eea;
-    margin-bottom: 8px; /* Creates visual gap between groups */
+    margin-bottom: 8px;
+    /* Creates visual gap between groups */
 }
 
 /* Add a visual gap after each group */
@@ -567,9 +601,9 @@
         font-size: 1.6rem;
     }
 
-    .back-button {
-        position: static;
-        margin-bottom: 15px;
+    .header-top-row {
+        flex-direction: column;
+        gap: 10px;
     }
 
     .dashboard-table {
@@ -580,7 +614,7 @@
     .dashboard-table td {
         padding: 10px 8px;
     }
-    
+
     .table-wrapper {
         overflow-x: auto;
     }
@@ -600,4 +634,3 @@
         justify-content: center;
     }
 }
-

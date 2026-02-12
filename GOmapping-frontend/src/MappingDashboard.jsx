@@ -196,6 +196,86 @@ function MappingDashboard() {
         }
     };
 
+    // Export filtered data to CSV
+    const exportToCSV = () => {
+        const headers = [
+            'Global_OrgName',
+            'Global_Acronym',
+            'Global_OrgId',
+            'Instance_Org_Name',
+            'Instance_Org_Acronym',
+            'Instance_Org_Type',
+            'InstanceOrgId',
+            'ParentOrgId',
+            'Match%',
+            'Risk',
+            'PoolFundID',
+            'PoolFundName',
+            'Status'
+        ];
+
+        const escapeCSV = (value) => {
+            if (value === null || value === undefined) return '';
+            const str = String(value);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+
+        const rows = [];
+        filteredData.forEach(goItem => {
+            if (goItem.mappings.length === 0) {
+                rows.push([
+                    escapeCSV(goItem.global_org_name),
+                    escapeCSV(goItem.global_acronym),
+                    escapeCSV(goItem.global_org_id),
+                    '', '', '', '', '', '', '', '', '', ''
+                ].join(','));
+            } else {
+                goItem.mappings.forEach(mapping => {
+                    rows.push([
+                        escapeCSV(goItem.global_org_name),
+                        escapeCSV(goItem.global_acronym),
+                        escapeCSV(goItem.global_org_id),
+                        escapeCSV(mapping.instance_org_name),
+                        escapeCSV(mapping.instance_org_acronym),
+                        escapeCSV(mapping.instance_org_type),
+                        escapeCSV(mapping.instance_org_id),
+                        escapeCSV(mapping.parent_instance_org_id),
+                        mapping.match_percent !== null && mapping.match_percent !== undefined
+                            ? `${mapping.match_percent.toFixed(0)}%` : '',
+                        escapeCSV(mapping.risk_level),
+                        escapeCSV(mapping.fund_id),
+                        escapeCSV(mapping.fund_name),
+                        escapeCSV(mapping.status)
+                    ].join(','));
+                });
+            }
+        });
+
+        const csvContent = '\uFEFF' + headers.join(',') + '\n' + rows.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+
+        const now = new Date();
+        const timestamp = now.toISOString().slice(0, 19).replace(/[T:]/g, '-');
+        const filterInfo = [
+            goFilter && `GO-${goFilter}`,
+            poolFundFilter && `Fund-${poolFundFilter}`,
+            riskFilter && `Risk-${riskFilter}`,
+            instanceOrgTypeFilter && `Type-${instanceOrgTypeFilter}`
+        ].filter(Boolean).join('_');
+
+        link.download = `GO_Mapping_Dashboard_${timestamp}${filterInfo ? '_' + filterInfo : ''}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
+
     if (loading) {
         return (
             <div className='mapping-dashboard-container'>
@@ -220,12 +300,22 @@ function MappingDashboard() {
         <div className='mapping-dashboard-container'>
             <div className='mapping-dashboard-content'>
                 <div className='dashboard-header'>
-                    <button
-                        className='back-button'
-                        onClick={() => navigate('/')}
-                    >
-                        ← return Summary
-                    </button>
+                    <div className='header-top-row'>
+                        <button
+                            className='back-button'
+                            onClick={() => navigate('/')}
+                        >
+                            ← return Summary
+                        </button>
+                        <button
+                            className='export-csv-button'
+                            onClick={exportToCSV}
+                            disabled={filteredData.length === 0}
+                            title='Export current filtered data to CSV file'
+                        >
+                            📥 Export to CSV
+                        </button>
+                    </div>
                     <h1>🗺️ GO Mapping Matrix Dashboard</h1>
                     <p>mapping dashboard</p>
                 </div>
