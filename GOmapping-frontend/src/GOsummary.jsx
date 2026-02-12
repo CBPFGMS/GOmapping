@@ -692,7 +692,8 @@ function GOsummary() {
             ? group.recommended_master
             : group.members.find(m => m.global_org_id === effectiveRecommendedId) || group.recommended_master;
 
-        const showActions = mode === 'system';
+        // Keep behavior consistent between System and AI tabs
+        const showActions = ['system', 'ai'].includes(mode);
 
         return (
             <div className='tree-structure'>

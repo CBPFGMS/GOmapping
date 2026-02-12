@@ -478,7 +478,8 @@ Please respond in the following JSON format:
     "analysis": "<2-3 sentence detailed explanation of your recommendation>"
 }}
 
-Be decisive and provide a clear recommendation."""
+Be decisive and provide a clear recommendation.
+Return JSON only. Do not include markdown code fences."""
 
         # Call ZhipuAI via official Python SDK
         try:
@@ -497,62 +498,139 @@ Be decisive and provide a clear recommendation."""
 
         client = ZhipuAI(api_key=api_key)
 
-        completion = client.chat.completions.create(
-            model="glm-4.7-flash",
-            messages=[
-                {"role": "system", "content": "You are a data quality expert. Always respond with valid JSON."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=1.0,
-            max_tokens=1024,
-        )
+        import time
 
-        response_text = (completion.choices[0].message.content or "").strip()
-        
-        # Log raw response for debugging
-        print(f"[DEBUG] AI raw response length: {len(response_text)}")
-        print(f"[DEBUG] AI raw response preview: {response_text[:500]}")
-        
-        # Check if response is empty
+        response_text = ""
+        max_attempts = 3
+        last_empty_reason = "unknown"
+
+        for attempt in range(1, max_attempts + 1):
+            completion = client.chat.completions.create(
+                model="glm-4.7-flash",
+                messages=[
+                    {"role": "system", "content": "You are a data quality expert. Always respond with valid JSON."},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=1024,
+            )
+
+            choice = completion.choices[0] if getattr(completion, "choices", None) else None
+            message = getattr(choice, "message", None)
+            finish_reason = getattr(choice, "finish_reason", None)
+            content = getattr(message, "content", None) if message else None
+
+            # Handle multiple SDK response shapes
+            if isinstance(content, list):
+                parts = []
+                for item in content:
+                    if isinstance(item, dict):
+                        parts.append(item.get("text", ""))
+                    else:
+                        text_val = getattr(item, "text", None)
+                        if text_val:
+                            parts.append(text_val)
+                response_text = "".join(parts).strip()
+            elif content is None:
+                response_text = ""
+            else:
+                response_text = str(content).strip()
+
+            print(f"[DEBUG] AI attempt={attempt}, finish_reason={finish_reason}, response_length={len(response_text)}")
+            print(f"[DEBUG] AI raw response preview: {response_text[:500]}")
+
+            if response_text:
+                break
+
+            last_empty_reason = f"empty_content (finish_reason={finish_reason})"
+            if attempt < max_attempts:
+                time.sleep(1.2 * attempt)
+
         if not response_text:
             return Response(
-                {"error": "AI returned empty response. Please try again."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-        
-        # Try to extract JSON from response
-        import re
-        
-        # Find JSON in response (might be wrapped in markdown code blocks)
-        json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(1)
-        else:
-            # Try to find JSON object directly
-            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(0)
-            else:
-                json_str = response_text
-        
-        # Try to parse JSON
-        try:
-            ai_result = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            # Return detailed error with raw response
-            return Response(
                 {
-                    "error": f"Failed to parse AI response as JSON: {str(e)}",
-                    "raw_response": response_text[:500],  # First 500 chars for debugging
-                    "hint": "AI may not be following the JSON format. Try regenerating."
+                    "error": "AI returned empty response after retries.",
+                    "hint": "Please try again in a few seconds. Upstream model may be temporarily unstable.",
+                    "detail": last_empty_reason,
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
         
+        # Try to extract/parse JSON from response (with tolerant fallback)
+        import re
+        import ast
+
+        candidates = []
+
+        # 1) Code fence JSON block
+        fenced_match = re.search(r'```(?:json)?\s*(.*?)\s*```', response_text, re.DOTALL | re.IGNORECASE)
+        if fenced_match:
+            candidates.append(fenced_match.group(1).strip())
+
+        # 2) Largest JSON-like object between first '{' and last '}'
+        first_brace = response_text.find('{')
+        last_brace = response_text.rfind('}')
+        if first_brace != -1 and last_brace != -1 and first_brace < last_brace:
+            candidates.append(response_text[first_brace:last_brace + 1].strip())
+
+        # 3) Full response as a last resort
+        candidates.append(response_text.strip())
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique_candidates = []
+        for item in candidates:
+            if item and item not in seen:
+                unique_candidates.append(item)
+                seen.add(item)
+
+        ai_result = None
+        parse_error = None
+        chosen_payload = None
+
+        for payload in unique_candidates:
+            # First try strict JSON
+            try:
+                parsed = json.loads(payload)
+                if isinstance(parsed, dict):
+                    ai_result = parsed
+                    chosen_payload = payload
+                    break
+            except Exception as e:
+                parse_error = e
+
+            # Then try Python-literal style dict (single quotes, etc.)
+            try:
+                parsed = ast.literal_eval(payload)
+                if isinstance(parsed, dict):
+                    ai_result = parsed
+                    chosen_payload = payload
+                    break
+            except Exception as e:
+                parse_error = e
+
+        if not ai_result:
+            return Response(
+                {
+                    "error": f"Failed to parse AI response as JSON: {str(parse_error)}",
+                    "raw_response": response_text[:800],
+                    "hint": "Model returned non-standard format. Please retry.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+        print(f"[DEBUG] AI parsed payload length: {len(chosen_payload or '')}")
+        
+        reasoning = ai_result.get("reasoning", [])
+        if isinstance(reasoning, str):
+            reasoning = [reasoning]
+        elif not isinstance(reasoning, list):
+            reasoning = [str(reasoning)]
+
         return Response({
             "recommended_id": ai_result.get("recommended_id"),
             "recommended_name": ai_result.get("recommended_name"),
-            "reasoning": ai_result.get("reasoning", []),
+            "reasoning": reasoning,
             "analysis": ai_result.get("analysis", "")
         })
     except Exception as e:
@@ -743,17 +821,27 @@ def create_merge_decision(request):
                 'error': f'Missing required fields: {", ".join(missing_fields)}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # 检查是否已存在相同的待处理决策
-        existing = MergeDecision.objects.filter(
+        # 冲突检查：同一个 Instance Org 只能有一个 pending 决策，避免冲突
+        existing_any_pending = MergeDecision.objects.filter(
             instance_org_id=data['instance_org_id'],
-            target_global_org_id=data['target_global_org_id'],
             execution_status='pending'
         ).first()
-        
-        if existing:
+
+        if existing_any_pending:
+            if existing_any_pending.target_global_org_id == data['target_global_org_id']:
+                return Response({
+                    'error': 'A pending decision already exists for this mapping change',
+                    'existing_decision_id': existing_any_pending.decision_id
+                }, status=status.HTTP_409_CONFLICT)
+
             return Response({
-                'error': 'A pending decision already exists for this mapping change',
-                'existing_decision_id': existing.decision_id
+                'error': (
+                    'Conflict: this instance organization already has another pending '
+                    'decision to a different target global organization'
+                ),
+                'existing_decision_id': existing_any_pending.decision_id,
+                'existing_target_global_org_id': existing_any_pending.target_global_org_id,
+                'existing_target_global_org_name': existing_any_pending.target_global_org_name,
             }, status=status.HTTP_409_CONFLICT)
         
         # 创建决策记录
