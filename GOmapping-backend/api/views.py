@@ -157,6 +157,7 @@ def go_summary(request):
                 'instance_org_id',
                 'instance_org_name',
                 'instance_org_acronym',
+                'instance_org_type',
                 'fund_name',
                 'match_percent'
             )[:20]  # Limit to 20 for performance
@@ -231,6 +232,7 @@ def go_summary(request):
                 'instance_org_id',
                 'instance_org_name',
                 'instance_org_acronym',
+                'instance_org_type',
                 'fund_name',
                 'match_percent'
             )[:20]  # Limit to 20 for performance
@@ -319,6 +321,7 @@ def org_mapping(request, go_id: int):
             "instance_org_id": mapping.instance_org_id,
             "instance_org_name": mapping.instance_org_name,
             "instance_org_acronym": mapping.instance_org_acronym,
+            "instance_org_type": mapping.instance_org_type,
             "parent_instance_org_id": mapping.parent_instance_org_id,
             "fund_id": mapping.fund_id,
             "fund_name": mapping.fund_name,
@@ -379,6 +382,7 @@ def mapping_dashboard(request):
                 "instance_org_id": mapping.instance_org_id,
                 "instance_org_name": mapping.instance_org_name,
                 "instance_org_acronym": mapping.instance_org_acronym,
+                "instance_org_type": mapping.instance_org_type,
                 "parent_instance_org_id": mapping.parent_instance_org_id,
                 "fund_id": mapping.fund_id,
                 "fund_name": mapping.fund_name,

@@ -36,6 +36,7 @@ class OrgMapping(models.Model):
     instance_org_id = models.IntegerField(blank=True, null=True)
     instance_org_name = models.CharField(max_length=255, db_collation='SQL_Latin1_General_CP1_CI_AS')
     instance_org_acronym = models.CharField(max_length=50, db_collation='SQL_Latin1_General_CP1_CI_AS', blank=True, null=True)
+    instance_org_type = models.CharField(max_length=255, db_collation='SQL_Latin1_General_CP1_CI_AS')
     parent_instance_org_id = models.IntegerField(blank=True, null=True)
     fund_name = models.CharField(max_length=255, db_collation='SQL_Latin1_General_CP1_CI_AS', blank=True, null=True)
     fund_id = models.IntegerField(blank=True, null=True)

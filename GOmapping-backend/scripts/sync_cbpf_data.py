@@ -195,6 +195,7 @@ def upsert_org_mappings(rows, batch_size=1000):
             continue
 
         instance_org_name = parse_str(row.get("OrganizationName"))
+        instance_org_type= parse_str(row.get("OrganizationTypeName"))
         if not instance_org_name:
             skipped_rows.append({
                 'reason': 'Missing OrganizationName',
@@ -214,6 +215,7 @@ def upsert_org_mappings(rows, batch_size=1000):
                 "instance_org_id": instance_org_id,
                 "instance_org_name": instance_org_name,
                 "instance_org_acronym": parse_str(row.get("OrganizationAcronym")) or None,
+                "instance_org_type": instance_org_type,
                 "global_org_id": global_org_id,
                 "fund_id": parse_int(row.get("PooledFundId")),
                 "fund_name": parse_str(row.get("PooledFundName")) or None,
@@ -292,6 +294,7 @@ def upsert_org_mappings(rows, batch_size=1000):
                     instance_org_id=row["instance_org_id"],
                     instance_org_name=row["instance_org_name"],
                     instance_org_acronym=row["instance_org_acronym"],
+                    instance_org_type= row["instance_org_type"],
                     parent_instance_org_id=None,
                     fund_id=row["fund_id"],
                     fund_name=row["fund_name"],
@@ -309,6 +312,7 @@ def upsert_org_mappings(rows, batch_size=1000):
                     global_org_id=row["global_org_id"],
                     instance_org_name=row["instance_org_name"],
                     instance_org_acronym=row["instance_org_acronym"],
+                    instance_org_type=row["instance_org_type"],
                     parent_instance_org_id=None,
                     fund_id=row["fund_id"],
                     fund_name=row["fund_name"],
@@ -328,6 +332,7 @@ def upsert_org_mappings(rows, batch_size=1000):
                 "global_org_id",
                 "instance_org_name",
                 "instance_org_acronym",
+                "instance_org_type",
                 "parent_instance_org_id",
                 "fund_id",
                 "fund_name",
