@@ -30,6 +30,7 @@ function GOsummary() {
     const [showDecisionModal, setShowDecisionModal] = useState(false);
     const [decisionData, setDecisionData] = useState(null);
     const [submittingDecision, setSubmittingDecision] = useState(false);
+    const [pendingDecisionsByInstance, setPendingDecisionsByInstance] = useState({});
 
     // Pagination state - Duplicate Groups
     const [dupCurrentPage, setDupCurrentPage] = useState(1);
@@ -198,6 +199,29 @@ function GOsummary() {
         return null;
     };
 
+    // Fetch pending decisions and index by instance_org_id for quick status rendering
+    const fetchPendingDecisions = async () => {
+        try {
+            const response = await fetch('http://localhost:8000/api/merge-decisions/?status=pending');
+            if (!response.ok) return;
+
+            const data = await response.json();
+            const decisions = data.decisions || [];
+            const indexed = {};
+
+            decisions.forEach((decision) => {
+                const key = String(decision.instance_org_id);
+                if (!indexed[key] || decision.decision_id > indexed[key].decision_id) {
+                    indexed[key] = decision;
+                }
+            });
+
+            setPendingDecisionsByInstance(indexed);
+        } catch (err) {
+            console.error('Failed to fetch pending decisions:', err);
+        }
+    };
+
     // Poll sync status briefly until latest sync time is visible
     const waitForLatestSyncTime = async (previousTime, maxAttempts = 10, intervalMs = 1000) => {
         const prevTs = previousTime ? new Date(previousTime).getTime() : 0;
@@ -237,6 +261,7 @@ function GOsummary() {
     useEffect(() => {
         // Fetch last sync time from database
         fetchLastSyncTime();
+        fetchPendingDecisions();
 
         // Try to load from sessionStorage first (for browser refresh)
         const cachedData = sessionStorage.getItem('go_summary_data');
@@ -566,6 +591,12 @@ function GOsummary() {
     // ========== Merge Decision Functions ==========
 
     const openDecisionModal = (instanceOrg, currentGlobalOrg, targetGlobalOrg, group) => {
+        const pending = pendingDecisionsByInstance[String(instanceOrg.instance_org_id)];
+        if (pending) {
+            navigate(`/merge-decisions?status=pending&instance_org_id=${instanceOrg.instance_org_id}`);
+            return;
+        }
+
         setDecisionData({
             instance_org_id: instanceOrg.instance_org_id,
             instance_org_name: instanceOrg.instance_org_name,
@@ -603,6 +634,7 @@ function GOsummary() {
             alert(`✅ Decision recorded successfully! (ID: ${result.decision_id})`);
             setShowDecisionModal(false);
             setDecisionData(null);
+            fetchPendingDecisions();
         } catch (err) {
             console.error('Error submitting decision:', err);
             alert(`❌ Error: ${err.message}`);
@@ -624,9 +656,16 @@ function GOsummary() {
 
         let successCount = 0;
         let failCount = 0;
+        let skippedPendingCount = 0;
         const errors = [];
 
         for (const inst of member.instance_organizations) {
+            const pending = pendingDecisionsByInstance[String(inst.instance_org_id)];
+            if (pending) {
+                skippedPendingCount++;
+                continue;
+            }
+
             try {
                 const decisionPayload = {
                     instance_org_id: inst.instance_org_id,
@@ -673,7 +712,13 @@ function GOsummary() {
                 }
             }
         }
+        if (skippedPendingCount > 0) {
+            message += `\n⏳ Skipped (already pending): ${skippedPendingCount} decisions`;
+        }
         alert(message);
+        if (successCount > 0) {
+            fetchPendingDecisions();
+        }
     };
 
     const getGroupTab = (groupId) => groupTabs[groupId] || 'system';
@@ -701,6 +746,9 @@ function GOsummary() {
                     const isRecommended = effectiveRecommendedId !== null
                         ? member.global_org_id === effectiveRecommendedId
                         : member.is_recommended;
+                    const pendingCount = (member.instance_organizations || []).reduce((count, inst) => {
+                        return pendingDecisionsByInstance[String(inst.instance_org_id)] ? count + 1 : count;
+                    }, 0);
 
                     return (
                         <div key={member.global_org_id} className='tree-node'>
@@ -728,7 +776,11 @@ function GOsummary() {
                                     <button
                                         className='record-all-btn'
                                         onClick={() => recordAllDecisions(member, targetGlobalOrg, group)}
-                                        title={`Record all ${member.instance_organizations.length} instances`}
+                                        title={
+                                            pendingCount > 0
+                                                ? `${pendingCount} instance(s) are already pending and will be skipped`
+                                                : `Record all ${member.instance_organizations.length} instances`
+                                        }
                                     >
                                         📝 Record All ({member.instance_organizations.length})
                                     </button>
@@ -738,26 +790,43 @@ function GOsummary() {
                                 <div className='tree-children'>
                                     {member.instance_organizations.map((inst, idx) => (
                                         <div key={inst.instance_org_id || idx} className='tree-child'>
-                                            <span className='tree-branch'>└─</span>
-                                            <span className='inst-org-id'>#{inst.instance_org_id}</span>
-                                            <span className='inst-org-name'>{inst.instance_org_name} </span>
-                                            {inst.instance_org_acronym && (
-                                                <span className='inst-org-acronym'>({inst.instance_org_acronym}) (instance organization)</span>
-                                            )}
-                                            <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
-                                                {inst.match_percent !== null && inst.match_percent !== undefined
-                                                    ? `${Math.round(inst.match_percent)}%`
-                                                    : '—'}
-                                            </span>
-                                            {showActions && !isRecommended && (
-                                                <button
-                                                    className='record-decision-btn'
-                                                    onClick={() => openDecisionModal(inst, member, targetGlobalOrg, group)}
-                                                    title='Record mapping change decision'
-                                                >
-                                                    📝 Record
-                                                </button>
-                                            )}
+                                            {(() => {
+                                                const pending = pendingDecisionsByInstance[String(inst.instance_org_id)];
+                                                return (
+                                                    <>
+                                                        <span className='tree-branch'>└─</span>
+                                                        <span className='inst-org-id'>#{inst.instance_org_id}</span>
+                                                        <span className='inst-org-name'>{inst.instance_org_name} </span>
+                                                        {inst.instance_org_acronym && (
+                                                            <span className='inst-org-acronym'>({inst.instance_org_acronym}) (instance organization)</span>
+                                                        )}
+                                                        <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
+                                                            {inst.match_percent !== null && inst.match_percent !== undefined
+                                                                ? `${Math.round(inst.match_percent)}%`
+                                                                : '—'}
+                                                        </span>
+                                                        {showActions && !isRecommended && (
+                                                            pending ? (
+                                                                <button
+                                                                    className='record-decision-btn pending'
+                                                                    onClick={() => navigate(`/merge-decisions?status=pending&instance_org_id=${inst.instance_org_id}`)}
+                                                                    title={`Already pending (Decision #${pending.decision_id}). Click to open Merge Decisions`}
+                                                                >
+                                                                    ⏳ Pending Decision
+                                                                </button>
+                                                            ) : (
+                                                                <button
+                                                                    className='record-decision-btn'
+                                                                    onClick={() => openDecisionModal(inst, member, targetGlobalOrg, group)}
+                                                                    title='Record mapping change decision'
+                                                                >
+                                                                    📝 Record
+                                                                </button>
+                                                            )
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                     ))}
                                     {member.usage_count > member.instance_organizations.length && (

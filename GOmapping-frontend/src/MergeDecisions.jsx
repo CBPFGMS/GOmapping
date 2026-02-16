@@ -1,23 +1,36 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import './MergeDecisions.css';
 
 function MergeDecisions() {
     const [decisions, setDecisions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [filter, setFilter] = useState('all'); // all, pending, executed, cancelled
-    const [searchTerm, setSearchTerm] = useState('');
+    const location = useLocation();
+    const queryParams = new URLSearchParams(location.search);
+    const initialFilter = queryParams.get('status');
+    const initialInstanceOrgId = queryParams.get('instance_org_id');
+    const [filter, setFilter] = useState(['all', 'pending', 'executed', 'cancelled'].includes(initialFilter) ? initialFilter : 'all'); // all, pending, executed, cancelled
+    const [searchTerm, setSearchTerm] = useState(initialInstanceOrgId || '');
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const status = params.get('status');
+        const instanceOrgId = params.get('instance_org_id');
+
+        if (status && ['all', 'pending', 'executed', 'cancelled'].includes(status)) {
+            setFilter(status);
+        }
+        if (instanceOrgId) {
+            setSearchTerm(instanceOrgId);
+        }
+    }, [location.search]);
 
     const fetchDecisions = async () => {
         setLoading(true);
         try {
-            const url = filter === 'all'
-                ? 'http://localhost:8000/api/merge-decisions/'
-                : `http://localhost:8000/api/merge-decisions/?status=${filter}`;
-
-            const response = await fetch(url);
+            const response = await fetch('http://localhost:8000/api/merge-decisions/');
             if (!response.ok) {
                 throw new Error('Failed to fetch decisions');
             }
@@ -34,7 +47,7 @@ function MergeDecisions() {
 
     useEffect(() => {
         fetchDecisions();
-    }, [filter]);
+    }, []);
 
     const updateStatus = async (decisionId, newStatus, notes = '') => {
         try {
@@ -84,12 +97,35 @@ function MergeDecisions() {
         }
     };
 
-    const exportToCSV = () => {
-        const filteredDecisions = decisions.filter(d =>
-            d.instance_org_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            d.original_global_org_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            d.target_global_org_name.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesDecisionSearch = (decision, term) => {
+        const query = (term || '').trim().toLowerCase();
+        if (!query) return true;
+
+        const instanceOrgId = String(decision.instance_org_id ?? '');
+        const decisionId = String(decision.decision_id ?? '');
+        const instanceOrgName = (decision.instance_org_name || '').toLowerCase();
+        const originalGlobalName = (decision.original_global_org_name || '').toLowerCase();
+        const targetGlobalName = (decision.target_global_org_name || '').toLowerCase();
+
+        // Numeric search from deep-link should pinpoint exact record by ID
+        if (/^\d+$/.test(query)) {
+            return instanceOrgId === query || decisionId === query;
+        }
+
+        return (
+            instanceOrgName.includes(query) ||
+            originalGlobalName.includes(query) ||
+            targetGlobalName.includes(query) ||
+            instanceOrgId.includes(query) ||
+            decisionId.includes(query)
         );
+    };
+
+    const exportToCSV = () => {
+        const filteredDecisions = decisions.filter(d => {
+            if (filter !== 'all' && d.execution_status !== filter) return false;
+            return matchesDecisionSearch(d, searchTerm);
+        });
 
         const headers = [
             'Decision ID',
@@ -155,18 +191,19 @@ function MergeDecisions() {
         return <span className={`status-badge ${badge.class}`}>{badge.icon} {badge.text}</span>;
     };
 
-    const filteredDecisions = decisions.filter(d =>
-        d.instance_org_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.original_global_org_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        d.target_global_org_name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
+    // Stats always reflect the full database counts (unfiltered)
     const stats = {
         total: decisions.length,
         pending: decisions.filter(d => d.execution_status === 'pending').length,
         executed: decisions.filter(d => d.execution_status === 'executed').length,
         cancelled: decisions.filter(d => d.execution_status === 'cancelled').length
     };
+
+    // Apply tab filter + search filter for display
+    const filteredDecisions = decisions.filter(d => {
+        if (filter !== 'all' && d.execution_status !== filter) return false;
+        return matchesDecisionSearch(d, searchTerm);
+    });
 
     if (loading) {
         return (

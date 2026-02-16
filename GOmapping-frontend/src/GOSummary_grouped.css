@@ -705,6 +705,14 @@
     background: #5568d3;
 }
 
+.record-decision-btn.pending {
+    background: #f0ad4e;
+}
+
+.record-decision-btn.pending:hover {
+    background: #ec971f;
+}
+
 .record-all-btn {
     margin-left: 12px;
     padding: 5px 12px;
