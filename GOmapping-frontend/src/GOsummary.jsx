@@ -45,6 +45,12 @@ function GOsummary() {
     // View toggle state
     const [currentView, setCurrentView] = useState('duplicates'); // 'duplicates' or 'unique'
     const [groupTabs, setGroupTabs] = useState({}); // {group_id: 'system' | 'ai'}
+    const [manualMasterByGroup, setManualMasterByGroup] = useState(() => {
+        try {
+            const saved = localStorage.getItem('manual_master_by_group');
+            return saved ? JSON.parse(saved) : {};
+        } catch { return {}; }
+    }); // {group_id: global_org_id}
 
     const fetchData = (forceRefresh = false) => {
         // Only show loading on first load when there's no cache
@@ -727,18 +733,50 @@ function GOsummary() {
         setGroupTabs(prev => ({ ...prev, [groupId]: tab }));
     };
 
+    const getManualMasterId = (group) => {
+        const selected = manualMasterByGroup[group.group_id];
+        if (selected && group.members.some(m => m.global_org_id === selected)) {
+            return selected;
+        }
+        return group.recommended_master.global_org_id;
+    };
+
+    const setManualMaster = (groupId, globalOrgId) => {
+        setManualMasterByGroup(prev => {
+            const next = { ...prev, [groupId]: globalOrgId };
+            try { localStorage.setItem('manual_master_by_group', JSON.stringify(next)); } catch { }
+            return next;
+        });
+    };
+
+    const resetManualMaster = (groupId) => {
+        setManualMasterByGroup(prev => {
+            const next = { ...prev };
+            delete next[groupId];
+            try { localStorage.setItem('manual_master_by_group', JSON.stringify(next)); } catch { }
+            return next;
+        });
+    };
+
     const renderRecommendationTree = (group, mode = 'system') => {
         const aiRec = aiRecommendations[group.group_id];
-        const recommendedIdRaw = mode === 'ai' ? aiRec?.recommended_id : group.recommended_master.global_org_id;
+        const manualMasterId = getManualMasterId(group);
+        const recommendedIdRaw = mode === 'ai'
+            ? aiRec?.recommended_id
+            : mode === 'manual'
+                ? manualMasterId
+                : group.recommended_master.global_org_id;
         const recommendedId = Number.parseInt(recommendedIdRaw, 10);
         const effectiveRecommendedId = Number.isFinite(recommendedId) ? recommendedId : null;
 
         const targetGlobalOrg = mode === 'system'
             ? group.recommended_master
-            : group.members.find(m => m.global_org_id === effectiveRecommendedId) || group.recommended_master;
+            : mode === 'ai'
+                ? (group.members.find(m => m.global_org_id === effectiveRecommendedId) || group.recommended_master)
+                : (group.members.find(m => m.global_org_id === manualMasterId) || group.recommended_master);
 
-        // Keep behavior consistent between System and AI tabs
-        const showActions = ['system', 'ai'].includes(mode);
+        // Keep behavior consistent between tabs, include manual operations
+        const showActions = ['system', 'ai', 'manual'].includes(mode);
 
         return (
             <div className='tree-structure'>
@@ -754,7 +792,9 @@ function GOsummary() {
                         <div key={member.global_org_id} className='tree-node'>
                             <div className='tree-node-header'>
                                 {isRecommended ? (
-                                    <span className='status-badge master'>⭐ KEEP</span>
+                                    <span className='status-badge master'>
+                                        {mode === 'manual' ? '⭐ KEEP (MANUAL)' : '⭐ KEEP'}
+                                    </span>
                                 ) : (
                                     <span className='status-badge merge'>MERGE</span>
                                 )}
@@ -772,6 +812,16 @@ function GOsummary() {
                                 >
                                     {member.usage_count} instances
                                 </span>
+                                {mode === 'manual' && !isRecommended && (
+                                    <button
+                                        className='expand-all-btn'
+                                        style={{ padding: '5px 10px', marginLeft: '8px' }}
+                                        onClick={() => setManualMaster(group.group_id, member.global_org_id)}
+                                        title='Set as the KEEP master for this group'
+                                    >
+                                        ⭐ Set Keep
+                                    </button>
+                                )}
                                 {showActions && !isRecommended && member.instance_organizations && member.instance_organizations.length > 0 && (
                                     <button
                                         className='record-all-btn'
@@ -1126,6 +1176,18 @@ function GOsummary() {
                                                         >
                                                             🤖 AI Model Recommendation
                                                         </button>
+                                                        <button
+                                                            className='expand-all-btn'
+                                                            style={{
+                                                                padding: '8px 14px',
+                                                                background: getGroupTab(group.group_id) === 'manual' ? '#5f7bf7' : '#ffffff',
+                                                                color: getGroupTab(group.group_id) === 'manual' ? '#fff' : '#5f7bf7',
+                                                                borderColor: '#5f7bf7'
+                                                            }}
+                                                            onClick={() => setGroupTab(group.group_id, 'manual')}
+                                                        >
+                                                            ✍️ Manual Decision
+                                                        </button>
                                                     </div>
 
                                                     {getGroupTab(group.group_id) === 'system' && (
@@ -1207,6 +1269,46 @@ function GOsummary() {
                                                                     </div>
                                                                 </>
                                                             )}
+                                                        </>
+                                                    )}
+
+                                                    {getGroupTab(group.group_id) === 'manual' && (
+                                                        <>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                                                                <div className='recommended-info' style={{ margin: 0 }}>
+                                                                    ✍️ Manual KEEP master: #
+                                                                    {getManualMasterId(group)} - {
+                                                                        (group.members.find(m => m.global_org_id === getManualMasterId(group)) || group.recommended_master).global_org_name
+                                                                    }
+                                                                    {manualMasterByGroup[group.group_id] && manualMasterByGroup[group.group_id] !== group.recommended_master.global_org_id && (
+                                                                        <span style={{ fontSize: '0.85rem', color: '#e67e22', marginLeft: 8 }}>
+                                                                            (differs from system recommendation)
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                {manualMasterByGroup[group.group_id] && (
+                                                                    <button
+                                                                        className='expand-all-btn'
+                                                                        style={{ padding: '5px 12px', fontSize: '0.85rem' }}
+                                                                        onClick={() => resetManualMaster(group.group_id)}
+                                                                        title='Reset to system recommended master'
+                                                                    >
+                                                                        ↩️ Reset to System
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            <div style={{
+                                                                marginBottom: '12px',
+                                                                padding: '10px 12px',
+                                                                border: '1px dashed #8ba1ff',
+                                                                borderRadius: '10px',
+                                                                background: 'rgba(95, 123, 247, 0.06)',
+                                                                color: '#4455aa',
+                                                                fontSize: '0.9rem'
+                                                            }}>
+                                                                Choose any global org as KEEP (click <strong>⭐ Set Keep</strong>), then use <strong>📝 Record</strong> or <strong>📝 Record All</strong> on others to create merge decisions. Your KEEP selection is auto-saved and persists across page refreshes.
+                                                            </div>
+                                                            {renderRecommendationTree(group, 'manual')}
                                                         </>
                                                     )}
                                                 </div>
