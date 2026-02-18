@@ -1020,10 +1020,22 @@ def update_merge_decision_status(request, decision_id):
         from django.utils import timezone
         decision.execution_status = new_status
         
+        mapping_updated = False
         if new_status == 'executed':
             decision.executed_at = timezone.now()
             decision.executed_by = request.data.get('executed_by', 'admin')
             decision.execution_notes = request.data.get('execution_notes', '')
+            
+            # Actually remap the instance org in org_mapping table
+            updated_count = OrgMapping.objects.filter(
+                instance_org_id=decision.instance_org_id,
+                global_org_id=decision.original_global_org_id
+            ).update(
+                global_org_id=decision.target_global_org_id,
+                updated_at=timezone.now()
+            )
+            mapping_updated = updated_count > 0
+            
         elif new_status == 'cancelled':
             decision.execution_notes = request.data.get('execution_notes', 'Cancelled by user')
         
@@ -1032,6 +1044,7 @@ def update_merge_decision_status(request, decision_id):
         return Response({
             'success': True,
             'message': f'Decision status updated to {new_status}',
+            'mapping_updated': mapping_updated,
             'decision': {
                 'decision_id': decision.decision_id,
                 'execution_status': decision.execution_status,

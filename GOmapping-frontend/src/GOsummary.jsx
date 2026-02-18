@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import './GOSummary.css';
 import './GOSummary_grouped.css';
 
@@ -12,6 +12,7 @@ function GOsummary() {
     const [expandedGroups, setExpandedGroups] = useState(new Set());
     const [expandedUniqueOrgs, setExpandedUniqueOrgs] = useState(new Set());
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Sync status state
     const [syncing, setSyncing] = useState(false);
@@ -31,6 +32,16 @@ function GOsummary() {
     const [decisionData, setDecisionData] = useState(null);
     const [submittingDecision, setSubmittingDecision] = useState(false);
     const [pendingDecisionsByInstance, setPendingDecisionsByInstance] = useState({});
+
+    // Record All modal state
+    const [showRecordAllModal, setShowRecordAllModal] = useState(false);
+    const [recordAllContext, setRecordAllContext] = useState(null); // {member, targetGlobalOrg, group}
+    const [recordAllOptions, setRecordAllOptions] = useState({
+        decision_type: 'remap',
+        confidence: 'high',
+        notes: ''
+    });
+    const [recordAllSubmitting, setRecordAllSubmitting] = useState(false);
 
     // Pagination state - Duplicate Groups
     const [dupCurrentPage, setDupCurrentPage] = useState(1);
@@ -268,6 +279,17 @@ function GOsummary() {
         // Fetch last sync time from database
         fetchLastSyncTime();
         fetchPendingDecisions();
+
+        // Check if we came back from executing a decision — auto trigger full sync with progress
+        const params = new URLSearchParams(location.search);
+        if (params.get('refreshAfterExecute') === 'true') {
+            console.log('🔄 Auto-refreshing after decision execution...');
+            sessionStorage.removeItem('go_summary_data');
+            window.history.replaceState({}, '', '/');
+            // Use setTimeout so state is ready before triggerSync runs
+            setTimeout(() => triggerSync(), 0);
+            return;
+        }
 
         // Try to load from sessionStorage first (for browser refresh)
         const cachedData = sessionStorage.getItem('go_summary_data');
@@ -649,16 +671,23 @@ function GOsummary() {
         }
     };
 
-    const recordAllDecisions = async (member, targetGlobalOrg, group) => {
+    const openRecordAllModal = (member, targetGlobalOrg, group) => {
         if (!member.instance_organizations || member.instance_organizations.length === 0) {
             alert('No instances to record');
             return;
         }
+        const pendingCount = member.instance_organizations.reduce((c, inst) =>
+            pendingDecisionsByInstance[String(inst.instance_org_id)] ? c + 1 : c, 0);
+        setRecordAllContext({ member, targetGlobalOrg, group, pendingCount });
+        setRecordAllOptions({ decision_type: 'remap', confidence: 'high', notes: '' });
+        setShowRecordAllModal(true);
+    };
 
-        const count = member.instance_organizations.length;
-        if (!window.confirm(`Record remapping decisions for all ${count} instances?\n\nThis will create ${count} decision records.`)) {
-            return;
-        }
+    const submitRecordAll = async () => {
+        if (!recordAllContext) return;
+        const { member, targetGlobalOrg, group } = recordAllContext;
+
+        setRecordAllSubmitting(true);
 
         let successCount = 0;
         let failCount = 0;
@@ -680,18 +709,16 @@ function GOsummary() {
                     original_global_org_name: member.global_org_name,
                     target_global_org_id: targetGlobalOrg.global_org_id,
                     target_global_org_name: targetGlobalOrg.global_org_name,
-                    decision_type: 'remap',
-                    confidence: 'high',
+                    decision_type: recordAllOptions.decision_type,
+                    confidence: recordAllOptions.confidence,
                     similarity_score: group.max_similarity,
-                    notes: `Batch recorded from duplicate group`,
+                    notes: recordAllOptions.notes || 'Batch recorded from duplicate group',
                     decided_by: 'admin'
                 };
 
                 const response = await fetch('http://localhost:8000/api/merge-decisions/create/', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(decisionPayload)
                 });
 
@@ -707,21 +734,21 @@ function GOsummary() {
             }
         }
 
-        // Show results
         let message = `✅ Successfully recorded: ${successCount} decisions`;
         if (failCount > 0) {
             message += `\n❌ Failed: ${failCount} decisions`;
             if (errors.length > 0) {
                 message += `\n\nErrors:\n${errors.slice(0, 3).join('\n')}`;
-                if (errors.length > 3) {
-                    message += `\n... and ${errors.length - 3} more`;
-                }
+                if (errors.length > 3) message += `\n... and ${errors.length - 3} more`;
             }
         }
         if (skippedPendingCount > 0) {
             message += `\n⏳ Skipped (already pending): ${skippedPendingCount} decisions`;
         }
         alert(message);
+        setShowRecordAllModal(false);
+        setRecordAllContext(null);
+        setRecordAllSubmitting(false);
         if (successCount > 0) {
             fetchPendingDecisions();
         }
@@ -825,7 +852,7 @@ function GOsummary() {
                                 {showActions && !isRecommended && member.instance_organizations && member.instance_organizations.length > 0 && (
                                     <button
                                         className='record-all-btn'
-                                        onClick={() => recordAllDecisions(member, targetGlobalOrg, group)}
+                                        onClick={() => openRecordAllModal(member, targetGlobalOrg, group)}
                                         title={
                                             pendingCount > 0
                                                 ? `${pendingCount} instance(s) are already pending and will be skipped`
@@ -1536,6 +1563,127 @@ function GOsummary() {
                         </div>
                     </div>
                 )}
+
+                {/* Record All Modal */}
+                {showRecordAllModal && recordAllContext && (() => {
+                    const { member, targetGlobalOrg, group, pendingCount } = recordAllContext;
+                    const totalInstances = member.instance_organizations.length;
+                    const willRecord = totalInstances - pendingCount;
+
+                    return (
+                        <div className='modal-overlay' onClick={() => !recordAllSubmitting && setShowRecordAllModal(false)}>
+                            <div className='modal-content' onClick={(e) => e.stopPropagation()}>
+                                <div className='modal-header'>
+                                    <h2>📝 Record All Mapping Decisions</h2>
+                                    <button className='modal-close' onClick={() => !recordAllSubmitting && setShowRecordAllModal(false)}>✕</button>
+                                </div>
+
+                                <div className='modal-body'>
+                                    <div className='decision-flow'>
+                                        <div className='flow-item original'>
+                                            <div className='flow-label'>Current Global Org</div>
+                                            <div className='flow-value'>
+                                                <strong>#{member.global_org_id}</strong>
+                                                <span>{member.global_org_name}</span>
+                                            </div>
+                                        </div>
+
+                                        <div className='flow-arrow change'>→</div>
+
+                                        <div className='flow-item target'>
+                                            <div className='flow-label'>Target (KEEP) ⭐</div>
+                                            <div className='flow-value'>
+                                                <strong>#{targetGlobalOrg.global_org_id}</strong>
+                                                <span>{targetGlobalOrg.global_org_name}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div style={{
+                                        margin: '14px 0',
+                                        padding: '10px 14px',
+                                        borderRadius: '8px',
+                                        background: '#f0f5ff',
+                                        border: '1px solid #d6e4ff',
+                                        fontSize: '0.92rem',
+                                        color: '#333'
+                                    }}>
+                                        <strong>{totalInstances}</strong> instance(s) under this global org.
+                                        {pendingCount > 0 && (
+                                            <span style={{ color: '#e67e22', marginLeft: 6 }}>
+                                                {pendingCount} already pending (will be skipped).
+                                            </span>
+                                        )}
+                                        {willRecord > 0 && (
+                                            <span style={{ color: '#27ae60', marginLeft: 6 }}>
+                                                {willRecord} will be recorded.
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div className='form-group'>
+                                        <label>Decision Type:</label>
+                                        <select
+                                            value={recordAllOptions.decision_type}
+                                            onChange={(e) => setRecordAllOptions(prev => ({ ...prev, decision_type: e.target.value }))}
+                                        >
+                                            <option value="remap">Remap (Change mapping)</option>
+                                            <option value="merge">Merge</option>
+                                            <option value="review_later">Review Later</option>
+                                        </select>
+                                    </div>
+
+                                    <div className='form-group'>
+                                        <label>Confidence Level:</label>
+                                        <select
+                                            value={recordAllOptions.confidence}
+                                            onChange={(e) => setRecordAllOptions(prev => ({ ...prev, confidence: e.target.value }))}
+                                        >
+                                            <option value="high">High</option>
+                                            <option value="medium">Medium</option>
+                                            <option value="low">Low</option>
+                                        </select>
+                                    </div>
+
+                                    <div className='form-group'>
+                                        <label>Notes (applies to all records):</label>
+                                        <textarea
+                                            value={recordAllOptions.notes}
+                                            onChange={(e) => setRecordAllOptions(prev => ({ ...prev, notes: e.target.value }))}
+                                            placeholder="Add any notes about this batch decision..."
+                                            rows="3"
+                                        />
+                                    </div>
+
+                                    {group.max_similarity && (
+                                        <div className='info-box'>
+                                            ℹ️ Group Similarity Score: <strong>{group.max_similarity.toFixed(1)}%</strong>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className='modal-footer'>
+                                    <button
+                                        className='btn-secondary'
+                                        onClick={() => setShowRecordAllModal(false)}
+                                        disabled={recordAllSubmitting}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        className='btn-primary'
+                                        onClick={submitRecordAll}
+                                        disabled={recordAllSubmitting || willRecord === 0}
+                                    >
+                                        {recordAllSubmitting
+                                            ? '⏳ Recording...'
+                                            : `✅ Record ${willRecord} Decision${willRecord !== 1 ? 's' : ''}`}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })()}
             </div>
         </div>
     );

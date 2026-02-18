@@ -67,8 +67,28 @@ function MergeDecisions() {
                 throw new Error('Failed to update status');
             }
 
-            alert(`✅ Status updated to ${newStatus}`);
-            fetchDecisions();
+            const result = await response.json();
+
+            if (newStatus === 'executed' && result.mapping_updated) {
+                alert(
+                    `✅ Decision executed successfully!\n\n` +
+                    `The instance org mapping has been updated in the database.\n` +
+                    `You will be redirected to the Summary page where data will refresh automatically.`
+                );
+                fetchDecisions();
+                // Clear cached summary so it reloads fresh data
+                try {
+                    for (let t = 0; t <= 100; t++) {
+                        sessionStorage.removeItem(`go_summary_data_${t}`);
+                        sessionStorage.removeItem(`go_summary_data_v2_${t}`);
+                    }
+                    sessionStorage.removeItem('go_summary_data');
+                } catch { }
+                navigate('/?refreshAfterExecute=true');
+            } else {
+                alert(`✅ Status updated to ${newStatus}`);
+                fetchDecisions();
+            }
         } catch (err) {
             console.error('Error updating status:', err);
             alert(`❌ Error: ${err.message}`);
