@@ -39,6 +39,9 @@ def go_summary(request):
     
     # Only update usage_count and recalculate similarities when force_refresh=true
     if force_refresh:
+        # Also invalidate mapping dashboard cache
+        cache.delete('mapping_dashboard_data')
+        
         # Calculate usage count for each GO from org_mapping table
         usage_counts = (
             OrgMapping.objects
@@ -345,60 +348,53 @@ def org_mapping(request, go_id: int):
 @api_view(["GET"])
 def mapping_dashboard(request):
     """
-    返回 Scenario 2 的完整数据结构
-    [
-      {
-        "global_org_id": 206,
-        "global_org_name": "Action For Development - South Sudan",
-        "global_acronym": "AFOD",
-        "mappings": [
-          {
-            "instance_org_id": 3611,
-            "instance_org_name": "Action For Development",
-            "instance_org_acronym": "AFOD-SS",
-            "parent_instance_org_id": null,
-            "fund_id": 20,
-            "fund_name": "South Sudan",
-            "match_percent": 62.00,
-            "risk_level": "MEDIUM",
-            "status": "Approved"
-          },
-          ...
-        ]
-      },
-      ...
-    ]
+    返回 Scenario 2 的完整数据结构（优化版：2 次查询代替 N+1）
     """
-    # 获取所有 GlobalOrganization 及其关联的 OrgMapping
-    global_orgs = GlobalOrganization.objects.all().order_by("global_org_id")
+    from django.core.cache import cache
+    from collections import defaultdict
+    
+    cache_key = 'mapping_dashboard_data'
+    cached = cache.get(cache_key)
+    if cached:
+        return Response(cached)
+    
+    # Query 1: all mappings in one go, grouped by global_org_id
+    all_mappings = OrgMapping.objects.all().order_by("global_org_id", "id").values(
+        'global_org_id',
+        'instance_org_id',
+        'instance_org_name',
+        'instance_org_acronym',
+        'instance_org_type',
+        'parent_instance_org_id',
+        'fund_id',
+        'fund_name',
+        'match_percent',
+        'risk_level',
+        'status',
+    )
+    
+    mappings_by_go = defaultdict(list)
+    for m in all_mappings:
+        go_id = m.pop('global_org_id')
+        if m['match_percent'] is not None:
+            m['match_percent'] = float(m['match_percent'])
+        mappings_by_go[go_id].append(m)
+    
+    # Query 2: all global orgs
+    global_orgs = GlobalOrganization.objects.all().order_by("global_org_id").values(
+        'global_org_id', 'global_org_name', 'global_acronym'
+    )
     
     result = []
     for go in global_orgs:
-        mappings_qs = OrgMapping.objects.filter(global_org_id=go.global_org_id).order_by("id")
-        
-        mappings = []
-        for mapping in mappings_qs:
-            mappings.append({
-                "instance_org_id": mapping.instance_org_id,
-                "instance_org_name": mapping.instance_org_name,
-                "instance_org_acronym": mapping.instance_org_acronym,
-                "instance_org_type": mapping.instance_org_type,
-                "parent_instance_org_id": mapping.parent_instance_org_id,
-                "fund_id": mapping.fund_id,
-                "fund_name": mapping.fund_name,
-                "match_percent": float(mapping.match_percent) if mapping.match_percent is not None else None,
-                "risk_level": mapping.risk_level,
-                "status": mapping.status,
-            })
-        
-        # Include ALL GOs, even those without mappings
         result.append({
-            "global_org_id": go.global_org_id,
-            "global_org_name": go.global_org_name,
-            "global_acronym": go.global_acronym,
-            "mappings": mappings,  # Will be empty list if no mappings
+            "global_org_id": go['global_org_id'],
+            "global_org_name": go['global_org_name'],
+            "global_acronym": go['global_acronym'],
+            "mappings": mappings_by_go.get(go['global_org_id'], []),
         })
     
+    cache.set(cache_key, result, 3600)
     return Response(result)
 
 
@@ -1035,6 +1031,9 @@ def update_merge_decision_status(request, decision_id):
                 updated_at=timezone.now()
             )
             mapping_updated = updated_count > 0
+            if mapping_updated:
+                from django.core.cache import cache
+                cache.delete('mapping_dashboard_data')
             
         elif new_status == 'cancelled':
             decision.execution_notes = request.data.get('execution_notes', 'Cancelled by user')
