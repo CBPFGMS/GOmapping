@@ -4,6 +4,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 import os
+import sys
 import requests
 import json
 
@@ -71,21 +72,24 @@ def go_summary(request):
             manage_py_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             
             # Run the command synchronously so response only returns after calculation is done
+            env = os.environ.copy()
+            env['PYTHONUTF8'] = '1'
+            # the threshold here will influence directly
             completed = subprocess.run(
-                ['python', 'manage.py', 'calculate_similarity', '--clear', '--threshold', '70'],
+                [sys.executable, 'manage.py', 'calculate_similarity', '--clear', '--threshold', '80'],
                 cwd=manage_py_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
                 check=False,
-                # On Windows, use creation flag to prevent console window
+                env=env,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
 
             if completed.returncode != 0:
                 print(f"Warning: Similarity calculation failed with code {completed.returncode}")
                 if completed.stderr:
-                    print(f"stderr: {completed.stderr[:1000]}")
+                    print(f"stderr: {completed.stderr[-2000:]}")
         except Exception as e:
             # Log the error but don't fail the request
             print(f"Warning: Could not start similarity calculation: {e}")

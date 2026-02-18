@@ -163,7 +163,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--threshold",
             type=float,
-            default=70.0,
+            default=40.0,
             help="Similarity threshold (default: 70.0)",
         )
         parser.add_argument(
@@ -196,14 +196,8 @@ class Command(BaseCommand):
         insert_chunk = int(options["insert_chunk"])
         compute_mapping = bool(options["compute_mapping"])
 
-        self.stdout.write(self.style.SUCCESS("🚀 Fast GO similarity (blocking) starting..."))
+        self.stdout.write(self.style.SUCCESS("Fast GO similarity (blocking) starting..."))
         self.stdout.write(f"Threshold: {threshold}% | max_bucket: {max_bucket} | insert_chunk: {insert_chunk}")
-
-        if clear_existing:
-            self.stdout.write("Clearing go_similarity ...")
-            with connection.cursor() as cursor:
-                cursor.execute("DELETE FROM go_similarity")
-            self.stdout.write(self.style.SUCCESS("go_similarity cleared."))
 
         gos = list(GlobalOrganization.objects.values("global_org_id", "global_org_name", "global_acronym"))
         self.stdout.write("Preparing normalized fields...")
@@ -303,17 +297,23 @@ class Command(BaseCommand):
 
         self.stdout.write(f"Inserting rows into go_similarity: {len(to_insert)}")
         with transaction.atomic():
+            if clear_existing:
+                self.stdout.write("Clearing go_similarity ...")
+                with connection.cursor() as cursor:
+                    cursor.execute("DELETE FROM go_similarity")
+                self.stdout.write(self.style.SUCCESS("go_similarity cleared."))
+
             self._insert_similarity_rows_with_progress(
                 to_insert,
                 chunk_size=max(100, min(insert_chunk, 2000)),
             )
 
-        self.stdout.write(self.style.SUCCESS("✅ go_similarity done."))
+        self.stdout.write(self.style.SUCCESS("go_similarity done."))
 
         if compute_mapping:
-            self.stdout.write(self.style.SUCCESS("🔧 Computing OrgMapping match_percent/risk_level ..."))
+            self.stdout.write(self.style.SUCCESS("Computing OrgMapping match_percent/risk_level ..."))
             self._compute_mapping_similarity(gos)
-            self.stdout.write(self.style.SUCCESS("✅ OrgMapping match_percent/risk_level done."))
+            self.stdout.write(self.style.SUCCESS("OrgMapping match_percent/risk_level done."))
 
     def _compute_mapping_similarity(self, gos):
         # Store original name along with normalized data
