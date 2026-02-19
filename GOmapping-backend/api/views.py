@@ -522,11 +522,11 @@ Return JSON only. Do not include markdown code fences."""
             completion = client.chat.completions.create(
                 model="glm-4.7-flash",
                 messages=[
-                    {"role": "system", "content": "You are a data quality expert. Always respond with valid JSON."},
+                    {"role": "system", "content": "You are a data quality expert. Always respond with valid JSON only, no extra text."},
                     {"role": "user", "content": prompt},
                 ],
                 temperature=0.3,
-                max_tokens=1024,
+                max_tokens=2048,
             )
 
             choice = completion.choices[0] if getattr(completion, "choices", None) else None
@@ -534,7 +534,6 @@ Return JSON only. Do not include markdown code fences."""
             finish_reason = getattr(choice, "finish_reason", None)
             content = getattr(message, "content", None) if message else None
 
-            # Handle multiple SDK response shapes
             if isinstance(content, list):
                 parts = []
                 for item in content:
@@ -552,6 +551,14 @@ Return JSON only. Do not include markdown code fences."""
 
             print(f"[DEBUG] AI attempt={attempt}, finish_reason={finish_reason}, response_length={len(response_text)}")
             print(f"[DEBUG] AI raw response preview: {response_text[:500]}")
+
+            if finish_reason == "length":
+                print(f"[DEBUG] Response truncated (finish_reason=length), retrying...")
+                last_empty_reason = f"truncated (finish_reason=length, got {len(response_text)} chars)"
+                response_text = ""
+                if attempt < max_attempts:
+                    time.sleep(1.5 * attempt)
+                continue
 
             if response_text:
                 break

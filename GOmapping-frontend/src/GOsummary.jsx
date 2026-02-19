@@ -837,7 +837,7 @@ function GOsummary() {
                                     className='tree-node-name link-text'
                                     onClick={() => handleGONameClick(member.global_org_id)}
                                 >
-                                    {member.global_org_name}{member.global_org_acronym ? ` (${member.global_org_acronym})` : ''} (global organization)
+                                    {member.global_org_name}{member.global_org_acronym ? ` (${member.global_org_acronym}` : ''} - global organization)
                                 </span>
                                 <span
                                     className='usage-badge clickable'
@@ -882,7 +882,7 @@ function GOsummary() {
                                                         <span className='inst-org-id'>#{inst.instance_org_id}</span>
                                                         <span className='inst-org-name'>{inst.instance_org_name} </span>
                                                         {inst.instance_org_acronym && (
-                                                            <span className='inst-org-acronym'>({inst.instance_org_acronym}) (instance organization)</span>
+                                                            <span className='inst-org-acronym'>({inst.instance_org_acronym} - instance organization)</span>
                                                         )}
                                                         <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
                                                             {inst.match_percent !== null && inst.match_percent !== undefined
@@ -1237,7 +1237,7 @@ function GOsummary() {
                                                     {getGroupTab(group.group_id) === 'system' && (
                                                         <>
                                                             <div className='recommended-info' style={{ marginBottom: '12px' }}>
-                                                                ⭐ System Recommendation: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name} ({group.recommended_master.global_org_acronym})
+                                                                ⭐ System Recommendation: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name} ({group.recommended_master.global_org_acronym} - global organization)
                                                             </div>
                                                             {renderRecommendationTree(group, 'system')}
                                                         </>
@@ -1438,7 +1438,7 @@ function GOsummary() {
                                                                 <span className='inst-org-id'>#{inst.instance_org_id}</span>
                                                                 <span className='inst-org-name'>{inst.instance_org_name} </span>
                                                                 {inst.instance_org_acronym && (
-                                                                    <span className='inst-org-acronym'>({inst.instance_org_acronym}) (instance orgnization)</span>
+                                                                    <span className='inst-org-acronym'>({inst.instance_org_acronym} - instance orgnization)</span>
                                                                 )}
                                                                 <span className={`match-badge ${getMatchClass(inst.match_percent)}`}>
                                                                     {inst.match_percent !== null && inst.match_percent !== undefined
