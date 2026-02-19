@@ -179,6 +179,7 @@ def go_summary(request):
             members.append({
                 "global_org_id": go.global_org_id,
                 "global_org_name": go.global_org_name,
+                "global_org_acronym": go.global_acronym or "",
                 "usage_count": usage,
                 "name_length": len(go.global_org_name) if go.global_org_name else 0,
                 "instance_organizations": list(instance_orgs)
@@ -221,6 +222,7 @@ def go_summary(request):
             "recommended_master": {
                 "global_org_id": recommended["global_org_id"],
                 "global_org_name": recommended["global_org_name"],
+                "global_org_acronym": recommended.get("global_org_acronym", ""),
                 "usage_count": recommended["usage_count"]
             },
             "members": members
@@ -254,6 +256,7 @@ def go_summary(request):
             unique_organizations.append({
                 "global_org_id": go.global_org_id,
                 "global_org_name": go.global_org_name,
+                "global_org_acronym": go.global_acronym or "",
                 "usage_count": go.usage_count or 0,
                 "instance_organizations": list(instance_orgs)
             })

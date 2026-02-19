@@ -837,7 +837,7 @@ function GOsummary() {
                                     className='tree-node-name link-text'
                                     onClick={() => handleGONameClick(member.global_org_id)}
                                 >
-                                    {member.global_org_name} (global organization)
+                                    {member.global_org_name}{member.global_org_acronym ? ` (${member.global_org_acronym})` : ''} (global organization)
                                 </span>
                                 <span
                                     className='usage-badge clickable'
@@ -1185,7 +1185,7 @@ function GOsummary() {
                                                         </span>
                                                     </div>
                                                     <div className='recommended-info'>
-                                                        ⭐ Recommended: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name}
+                                                        ⭐ Recommended: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name} - {group.recommended_master.global_org_acronym}
                                                     </div>
                                                 </div>
                                                 <span className='meta-item' style={{ marginLeft: '12px' }}>
@@ -1237,7 +1237,7 @@ function GOsummary() {
                                                     {getGroupTab(group.group_id) === 'system' && (
                                                         <>
                                                             <div className='recommended-info' style={{ marginBottom: '12px' }}>
-                                                                ⭐ System Recommendation: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name}
+                                                                ⭐ System Recommendation: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name} ({group.recommended_master.global_org_acronym})
                                                             </div>
                                                             {renderRecommendationTree(group, 'system')}
                                                         </>
