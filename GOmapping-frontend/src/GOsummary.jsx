@@ -23,6 +23,10 @@ function GOsummary() {
     const [syncElapsedSeconds, setSyncElapsedSeconds] = useState(0);
     const [syncStartedAt, setSyncStartedAt] = useState(null);
 
+    // Similarity threshold (default 70, user-adjustable)
+    const DEFAULT_THRESHOLD = 70;
+    const [thresholdInput, setThresholdInput] = useState('70');
+
     // AI recommendation state
     const [aiRecommendations, setAiRecommendations] = useState({}); // {group_id: {recommendation, reasoning, loading}}
     const [aiLoadingGroups, setAiLoadingGroups] = useState(new Set());
@@ -152,7 +156,10 @@ function GOsummary() {
             sessionStorage.removeItem('go_summary_data');
 
             const timestamp = new Date().getTime();
-            const dataResponse = await fetch(`http://localhost:8000/api/go-summary/?_t=${timestamp}&refresh=true`);
+            const thresh = parseFloat(thresholdInput);
+            const threshParam = (!isNaN(thresh) && thresh !== DEFAULT_THRESHOLD)
+                ? `&threshold=${thresh}` : '';
+            const dataResponse = await fetch(`http://localhost:8000/api/go-summary/?_t=${timestamp}&refresh=true${threshParam}`);
 
             if (!dataResponse.ok) {
                 throw new Error('Failed to fetch updated data');
@@ -969,7 +976,11 @@ function GOsummary() {
                         >
                             📝 View Decisions
                         </button>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', minHeight: '60px' }}>
+                        <div style={{
+                            display: 'flex', flexDirection: 'column', alignItems: 'center',
+                            gap: '8px', minWidth: '220px',
+                        }}>
+                            {/* Row 1: Refresh button */}
                             <button
                                 className='nav-button'
                                 onClick={triggerSync}
@@ -977,56 +988,62 @@ function GOsummary() {
                                 style={{
                                     opacity: syncing ? 0.7 : 1,
                                     backgroundColor: syncing ? '#ff9800' : undefined,
-                                    minWidth: '180px'
+                                    minWidth: '180px',
                                 }}
                             >
                                 {syncing ? '⏳ Syncing & Calculating...' : '🔄 Refresh Data'}
                             </button>
-                            {lastSyncTime && !syncing && (
-                                <span style={{
-                                    fontSize: '11px',
-                                    color: '#DDD',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '4px',
-                                    whiteSpace: 'nowrap'
-                                }}>
-                                    <span style={{ color: '#52c41a' }}>●</span>
-                                    Last synced: {new Date(lastSyncTime).toLocaleString('zh-CN', {
-                                        year: 'numeric',
-                                        month: '2-digit',
-                                        day: '2-digit',
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        second: '2-digit',
-                                        hour12: false
-                                    })}
-                                </span>
-                            )}
-                            {syncing && (
-                                <>
-                                    <span style={{
-                                        fontSize: '12px',
-                                        color: '#ff9800',
-                                        fontWeight: '500'
-                                    }}>
+
+                            {/* Row 2: Threshold inline control */}
+                            <div style={{
+                                display: 'flex', alignItems: 'center', gap: '6px',
+                                background: 'rgba(0,0,0,0.25)',
+                                borderRadius: '8px', padding: '5px 12px',
+                            }}>
+                                <span style={{ fontSize: '12px', color: '#fff', fontWeight: 500 }}>Similarity</span>
+                                <input
+                                    type="number" min="0" max="100" step="1"
+                                    value={thresholdInput}
+                                    onChange={e => setThresholdInput(e.target.value)}
+                                    disabled={syncing}
+                                    style={{
+                                        width: '46px', padding: '2px 4px',
+                                        borderRadius: '4px',
+                                        border: '1px solid rgba(255,255,255,0.4)',
+                                        background: 'rgba(255,255,255,0.15)',
+                                        color: '#fff', fontSize: '13px', textAlign: 'center',
+                                    }}
+                                />
+                                <span style={{ fontSize: '12px', color: '#fff' }}>%</span>
+                                <span style={{ fontSize: '12px', color: '#fff' }}>(default {DEFAULT_THRESHOLD})</span>
+                            </div>
+
+                            {/* Row 3: Status info */}
+                            {syncing ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                    <span style={{ fontSize: '12px', color: '#ff9800', fontWeight: 500 }}>
                                         {syncPhase || 'Sync in progress...'}
                                     </span>
-                                    <span style={{
-                                        fontSize: '11px',
-                                        color: '#DDD'
-                                    }}>
+                                    <span style={{ fontSize: '11px', color: '#DDD' }}>
                                         Elapsed: {syncElapsedSeconds}s
                                     </span>
-                                </>
-                            )}
-                            {!syncing && (
-                                <span style={{
-                                    fontSize: '11px',
-                                    color: '#DDD'
-                                }}>
-                                    Tip: Click "Refresh Data" to sync latest records.
-                                </span>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                    {lastSyncTime && (
+                                        <span style={{
+                                            fontSize: '11px', color: '#DDD',
+                                            display: 'flex', alignItems: 'center', gap: '4px',
+                                        }}>
+                                            <span style={{ color: '#52c41a' }}>●</span>
+                                            Last synced: {new Date(lastSyncTime).toLocaleString('zh-CN', {
+                                                year: 'numeric', month: '2-digit', day: '2-digit',
+                                                hour: '2-digit', minute: '2-digit', second: '2-digit',
+                                                hour12: false,
+                                            })}
+                                        </span>
+                                    )}
+                                </div>
                             )}
                         </div>
                     </div>

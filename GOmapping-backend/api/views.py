@@ -30,6 +30,13 @@ def go_summary(request):
     
     # Check if force refresh is requested
     force_refresh = request.GET.get('refresh', '').lower() == 'true'
+
+    # Similarity threshold — defaults to 70, can be overridden via ?threshold=XX
+    try:
+        threshold = float(request.GET.get('threshold', 70))
+        threshold = max(0.0, min(100.0, threshold))
+    except (ValueError, TypeError):
+        threshold = 70.0
     
     # Try to get cached result (only if NOT force refresh)
     cache_key = 'go_summary_data'
@@ -76,7 +83,7 @@ def go_summary(request):
             env['PYTHONUTF8'] = '1'
             # the threshold here will influence directly
             completed = subprocess.run(
-                [sys.executable, 'manage.py', 'calculate_similarity', '--clear', '--threshold', '80'],
+                [sys.executable, 'manage.py', 'calculate_similarity', '--clear', '--threshold', str(threshold)],
                 cwd=manage_py_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
