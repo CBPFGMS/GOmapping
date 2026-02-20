@@ -68,6 +68,24 @@ function MappingDashboard() {
         setInstanceOrgTypeOptions([...orgTypeSet].sort());
     };
 
+    const getRiskFromPercent = (percent) => {
+        if (percent === null || percent === undefined) return null;
+        if (percent >= 85) return 'LOW';
+        if (percent >= 60) return 'MEDIUM';
+        return 'HIGH';
+    };
+
+    const getRiskClass = (percent) => {
+        if (percent === null) return 'risk-none';
+        if (percent >= 85) return 'risk-low';
+        if (percent >= 60) return 'risk-medium';
+        return 'risk-high';
+    };
+
+    const getRiskLevel = (percent) => {
+        return getRiskFromPercent(percent) || '—';
+    };
+
     // Apply filters
     useEffect(() => {
         if (!data.length) return;
@@ -85,9 +103,12 @@ function MappingDashboard() {
                     return false;
                 }
 
-                // Filter Risk
-                if (riskFilter && mapping.risk_level !== riskFilter) {
-                    return false;
+                // Filter Risk (derive from match_percent to handle null risk_level)
+                if (riskFilter) {
+                    const computedRisk = getRiskFromPercent(mapping.match_percent);
+                    if (computedRisk !== riskFilter) {
+                        return false;
+                    }
                 }
 
                 // Filter Instance Org Type
@@ -113,19 +134,6 @@ function MappingDashboard() {
         setFilteredData(filtered);
         setCurrentPage(1); // Reset to first page when filter changes
     }, [goFilter, poolFundFilter, riskFilter, instanceOrgTypeFilter, data]);
-
-    // Get risk level style class
-    const getRiskClass = (percent) => {
-        if (percent === null) return 'risk-none';
-        if (percent >= 85) return 'risk-low';
-        if (percent >= 60) return 'risk-medium';
-        return 'risk-high';
-    };
-
-    // Get risk level text
-    const getRiskLevel = (riskLevel) => {
-        return riskLevel || '—';
-    };
 
     // Calculate real mapping records (excluding empty GOs)
     const realMappingRecords = filteredData.reduce((total, goItem) => {
@@ -245,7 +253,7 @@ function MappingDashboard() {
                         escapeCSV(mapping.parent_instance_org_id),
                         mapping.match_percent !== null && mapping.match_percent !== undefined
                             ? `${mapping.match_percent.toFixed(0)}%` : '',
-                        escapeCSV(mapping.risk_level),
+                        escapeCSV(getRiskFromPercent(mapping.match_percent)),
                         escapeCSV(mapping.fund_id),
                         escapeCSV(mapping.fund_name),
                         escapeCSV(mapping.status)
@@ -450,7 +458,7 @@ function MappingDashboard() {
                                                                 : '—'}
                                                         </td>
                                                         <td className={getRiskClass(mapping.match_percent)}>
-                                                            {getRiskLevel(mapping.risk_level)}
+                                                            {getRiskLevel(mapping.match_percent)}
                                                         </td>
                                                         <td>{mapping.fund_id || '—'}</td>
                                                         <td>{mapping.fund_name || '—'}</td>
