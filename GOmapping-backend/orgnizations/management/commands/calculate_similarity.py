@@ -163,7 +163,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--threshold",
             type=float,
-            default=40.0,
+            default=70.0,
             help="Similarity threshold (default: 70.0)",
         )
         parser.add_argument(

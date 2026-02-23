@@ -1185,7 +1185,7 @@ function GOsummary() {
                                                         </span>
                                                     </div>
                                                     <div className='recommended-info'>
-                                                        ⭐ Recommended: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name} - {group.recommended_master.global_org_acronym}
+                                                        ⭐ Recommended: #{group.recommended_master.global_org_id} - {group.recommended_master.global_org_name} ({group.recommended_master.global_org_acronym} - global organization)
                                                     </div>
                                                 </div>
                                                 <span className='meta-item' style={{ marginLeft: '12px' }}>
