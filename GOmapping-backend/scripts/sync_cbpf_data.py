@@ -37,12 +37,12 @@ def parse_str(value):
 
 def calculate_match_percent(instance_org_name, global_org_name):
     """
-    计算 Instance Org 名字与 Global Org 名字的匹配度
-    
-    使用 SequenceMatcher 计算两个字符串的相似度
-    返回: 0-100 的百分比 (Decimal)
-    
-    示例:
+    Calculate name match percentage between Instance Org and Global Org.
+
+    Uses SequenceMatcher to compute string similarity.
+    Returns: 0-100 percentage (Decimal).
+
+    Examples:
     - "Lutheran World Federation" vs "Lutheran World Federation" = 100.00
     - "Lutheran World federation" vs "Lutheran World Federation" = 96.15
     - "Food and Agriculture Organization" vs "FAO" = 12.50
@@ -53,17 +53,17 @@ def calculate_match_percent(instance_org_name, global_org_name):
     if not instance_org_name or not global_org_name:
         return None
     
-    # 标准化名称（小写、去空格）
+    # Normalize names (lowercase and trim spaces)
     name1 = instance_org_name.lower().strip()
     name2 = global_org_name.lower().strip()
     
     if not name1 or not name2:
         return None
     
-    # 使用 SequenceMatcher 计算相似度
+    # Compute similarity using SequenceMatcher
     ratio = SequenceMatcher(None, name1, name2).ratio()
     
-    # 转换为百分比，保留2位小数
+    # Convert to percentage with two decimals
     match_percent = round(ratio * 100, 2)
     
     return Decimal(str(match_percent))
@@ -155,11 +155,11 @@ def upsert_global_orgs(rows, batch_size=1000):
     
     connection.commit()
     
-    # 打印被跳过的数据
+    # Print skipped rows
     if skipped_rows:
         print(f"\n⚠️  GlobalOrg: Skipped {len(skipped_rows)} rows due to data quality issues:")
         print("-" * 80)
-        for i, skip in enumerate(skipped_rows[:20], 1):  # 只显示前20条
+        for i, skip in enumerate(skipped_rows[:20], 1):  # Show only the first 20
             print(f"{i}. Reason: {skip['reason']}")
             print(f"   ParentOrganizationId: {skip.get('ParentOrganizationId')}")
             print(f"   GlobalOrgName: {skip.get('GlobalOrgName')}")
@@ -180,7 +180,7 @@ def upsert_org_mappings(rows, batch_size=1000):
     mapping_rows = []
     instance_ids = set()
     global_ids = set()
-    skipped_rows = []  # 记录被跳过的数据
+    skipped_rows = []  # Track skipped rows
 
     for row in rows:
         instance_org_id = parse_int(row.get("OrganizationId"))
@@ -344,11 +344,11 @@ def upsert_org_mappings(rows, batch_size=1000):
             batch_size=batch_size,
         )
 
-    # 打印被跳过的数据
+    # Print skipped rows
     if skipped_rows:
         print(f"\n⚠️  Skipped {len(skipped_rows)} rows due to data quality issues:")
         print("-" * 80)
-        for i, skip in enumerate(skipped_rows[:20], 1):  # 只显示前20条
+        for i, skip in enumerate(skipped_rows[:20], 1):  # Show only the first 20
             print(f"{i}. Reason: {skip['reason']}")
             print(f"   OrganizationId: {skip.get('OrganizationId')}")
             print(f"   GlobalOrgId: {skip.get('GlobalOrgId')}")

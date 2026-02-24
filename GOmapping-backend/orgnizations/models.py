@@ -53,8 +53,8 @@ class OrgMapping(models.Model):
 
 class DataSyncLog(models.Model):
     """
-    记录每次数据同步的情况
-    用于追踪外部数据更新和同步状态
+    Stores each data synchronization run.
+    Used to track external data updates and sync states.
     """
     SYNC_TYPES = [
         ('global_org', 'Global Organization'),
@@ -72,24 +72,24 @@ class DataSyncLog(models.Model):
     sync_id = models.AutoField(primary_key=True)
     sync_type = models.CharField(max_length=50, choices=SYNC_TYPES)
     
-    # 时间记录
+    # Time tracking
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     
-    # 数据变化统计
+    # Data change statistics
     records_fetched = models.IntegerField(default=0)
     records_created = models.IntegerField(default=0)
     records_updated = models.IntegerField(default=0)
     records_deleted = models.IntegerField(default=0)
     
-    # 数据指纹（用于检测变化）
+    # Data checksum (used for change detection)
     data_checksum = models.CharField(max_length=64, null=True, blank=True)
     
-    # 状态和错误信息
+    # Status and error details
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='running')
     error_message = models.TextField(blank=True)
     
-    # 触发方式
+    # Trigger source
     triggered_by = models.CharField(max_length=50, default='auto')  # 'auto' / 'manual' / 'api'
     
     class Meta:
@@ -106,7 +106,7 @@ class DataSyncLog(models.Model):
     
     @property
     def duration_seconds(self):
-        """计算同步耗时（秒）"""
+        """Calculate sync duration in seconds."""
         if self.completed_at and self.started_at:
             return (self.completed_at - self.started_at).total_seconds()
         return None
@@ -114,15 +114,15 @@ class DataSyncLog(models.Model):
 
 class MergeDecision(models.Model):
     """
-    映射变更决策记录表
-    用于记录将 Instance Org 的映射关系从原 Global Org 改为新 Global Org 的决策
-    记录完整的映射变更链路：Instance Org → Original Global Org → Target Global Org
-    只记录决策，不实际执行修改操作
+    Mapping change decision records.
+    Stores decisions that remap an Instance Org from one Global Org to another.
+    Captures the full change chain: Instance Org -> Original Global Org -> Target Global Org.
+    This model records decisions only; execution is handled separately.
     """
     DECISION_TYPES = [
-        ('remap', 'Remap'),  # 重新映射
-        ('merge', 'Merge'),  # 合并
-        ('review_later', 'Review Later'),  # 稍后审查
+        ('remap', 'Remap'),  # Remap to another Global Org
+        ('merge', 'Merge'),  # Merge records
+        ('review_later', 'Review Later'),  # Defer for later review
     ]
     
     CONFIDENCE_LEVELS = [
@@ -139,29 +139,29 @@ class MergeDecision(models.Model):
     
     decision_id = models.AutoField(primary_key=True)
     
-    # Instance Organization（实例组织）
+    # Instance Organization
     instance_org_id = models.IntegerField()
     instance_org_name = models.CharField(max_length=255)
     
-    # Original Mapping（原始映射）
+    # Original Mapping
     original_global_org_id = models.IntegerField()
     original_global_org_name = models.CharField(max_length=255)
     
-    # Target Mapping（目标映射）
+    # Target Mapping
     target_global_org_id = models.IntegerField()
     target_global_org_name = models.CharField(max_length=255)
     
-    # Decision Info（决策信息）
+    # Decision Info
     decision_type = models.CharField(max_length=50, choices=DECISION_TYPES, default='remap')
     confidence = models.CharField(max_length=20, choices=CONFIDENCE_LEVELS, null=True, blank=True)
     similarity_score = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     notes = models.TextField(blank=True)
     
-    # Decision Metadata（决策元数据）
+    # Decision Metadata
     decided_by = models.CharField(max_length=100, default='admin')
     decided_at = models.DateTimeField(auto_now_add=True)
     
-    # Execution Status（执行状态）
+    # Execution Status
     execution_status = models.CharField(max_length=50, choices=EXECUTION_STATUS, default='pending')
     executed_at = models.DateTimeField(null=True, blank=True)
     executed_by = models.CharField(max_length=100, null=True, blank=True)

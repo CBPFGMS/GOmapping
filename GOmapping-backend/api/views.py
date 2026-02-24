@@ -284,7 +284,7 @@ def go_summary(request):
 @api_view(["GET"])
 def go_detail(request, go_id: int):
     """
-    返回：
+    Returns:
     {
       "go_info": {"id": 1, "name": "xxx"},
       "similar_gos": [{"go_id": 2, "go_name": "yyy", "similarity": 90.12, "mapping_count": 123}, ...]
@@ -306,7 +306,7 @@ def go_detail(request, go_id: int):
                 "go_id": tgt.global_org_id,
                 "go_name": tgt.global_org_name,
                 "similarity": float(s.similarity_percent) if s.similarity_percent is not None else None,
-                # 前端展示“Mapping Count”，这里用 target GO 自带的 usage_count（与你 summary 页一致）
+                # Frontend shows "Mapping Count"; use target GO usage_count for consistency with summary view.
                 "mapping_count": tgt.usage_count,
             }
         )
@@ -362,7 +362,7 @@ def org_mapping(request, go_id: int):
 @api_view(["GET"])
 def mapping_dashboard(request):
     """
-    返回 Scenario 2 的完整数据结构（优化版：2 次查询代替 N+1）
+    Returns the full data structure for Scenario 2 (optimized: 2 queries instead of N+1).
     """
     from django.core.cache import cache
     from collections import defaultdict
@@ -666,13 +666,13 @@ Return JSON only. Do not include markdown code fences."""
 
 
 # ============================================
-# 数据同步 API
+# Data Sync APIs
 # ============================================
 
 @api_view(['GET'])
 def sync_status(request):
     """
-    获取数据同步状态
+    Get data synchronization status.
     GET /api/sync-status/
     GET /api/sync-status/?sync_type=org_mapping
     """
@@ -687,7 +687,7 @@ def sync_status(request):
 @api_view(['GET'])
 def sync_history(request):
     """
-    获取同步历史记录
+    Get synchronization history.
     GET /api/sync-history/
     GET /api/sync-history/?limit=10&sync_type=org_mapping
     """
@@ -706,14 +706,14 @@ def sync_history(request):
 @api_view(['POST'])
 def trigger_sync(request):
     """
-    手动触发数据同步
+    Manually trigger data synchronization.
     
     POST /api/trigger-sync/
     
     Request body:
     {
         "sync_type": "full",  # "full" / "global_org" / "org_mapping"
-        "force": false  # 是否强制同步（忽略时间和指纹检查）
+        "force": false  # Whether to force sync (skip time and checksum checks)
     }
     
     Response:
@@ -779,7 +779,7 @@ def trigger_sync(request):
 @api_view(['GET'])
 def check_for_updates(request):
     """
-    快速检查是否有数据更新（不执行同步）
+    Quickly check whether updates are available (without running sync).
     
     GET /api/check-for-updates/
     
@@ -810,7 +810,7 @@ def check_for_updates(request):
 @api_view(['POST'])
 def create_merge_decision(request):
     """
-    创建映射变更决策记录
+    Create a mapping change decision record.
     
     POST /api/merge-decisions/create/
     Body: {
@@ -830,7 +830,7 @@ def create_merge_decision(request):
     try:
         data = request.data
         
-        # 验证必需字段
+        # Validate required fields
         required_fields = [
             'instance_org_id', 'instance_org_name',
             'original_global_org_id', 'original_global_org_name',
@@ -842,7 +842,7 @@ def create_merge_decision(request):
                 'error': f'Missing required fields: {", ".join(missing_fields)}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # 冲突检查：同一个 Instance Org 只能有一个 pending 决策，避免冲突
+        # Conflict check: one Instance Org can have only one pending decision at a time.
         existing_any_pending = MergeDecision.objects.filter(
             instance_org_id=data['instance_org_id'],
             execution_status='pending'
@@ -865,7 +865,7 @@ def create_merge_decision(request):
                 'existing_target_global_org_name': existing_any_pending.target_global_org_name,
             }, status=status.HTTP_409_CONFLICT)
         
-        # 创建决策记录
+        # Create decision record
         decision = MergeDecision.objects.create(
             instance_org_id=data['instance_org_id'],
             instance_org_name=data['instance_org_name'],
@@ -911,7 +911,7 @@ def create_merge_decision(request):
 @api_view(['GET'])
 def list_merge_decisions(request):
     """
-    获取映射变更决策列表
+    Get mapping change decision list.
     
     GET /api/merge-decisions/
     Query params:
@@ -923,7 +923,7 @@ def list_merge_decisions(request):
     try:
         decisions = MergeDecision.objects.all()
         
-        # 过滤
+        # Filters
         exec_status = request.GET.get('status')
         if exec_status:
             decisions = decisions.filter(execution_status=exec_status)
@@ -940,7 +940,7 @@ def list_merge_decisions(request):
         if target_global_org_id:
             decisions = decisions.filter(target_global_org_id=target_global_org_id)
         
-        # 序列化
+        # Serialize response data
         decisions_data = [{
             'decision_id': d.decision_id,
             'instance_org_id': d.instance_org_id,
@@ -975,14 +975,14 @@ def list_merge_decisions(request):
 @api_view(['DELETE'])
 def delete_merge_decision(request, decision_id):
     """
-    删除合并决策记录
+    Delete a merge decision record.
     
     DELETE /api/merge-decisions/<decision_id>/
     """
     try:
         decision = get_object_or_404(MergeDecision, decision_id=decision_id)
         
-        # 只允许删除 pending 状态的决策
+        # Only allow deletion for pending decisions
         if decision.execution_status != 'pending':
             return Response({
                 'error': f'Cannot delete decision with status: {decision.execution_status}'
@@ -1011,7 +1011,7 @@ def delete_merge_decision(request, decision_id):
 @api_view(['PATCH'])
 def update_merge_decision_status(request, decision_id):
     """
-    更新决策执行状态
+    Update decision execution status.
     
     PATCH /api/merge-decisions/<decision_id>/status/
     Body: {
