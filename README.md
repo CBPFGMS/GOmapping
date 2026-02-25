@@ -31,11 +31,29 @@ It provides:
 
 ## Prerequisites
 - Node.js >= 18
-- Python >= 3.10
+- Python >= 3.12
 - SQL Server
 - ODBC Driver 17 for SQL Server
 
 ## Quick Start
+
+### database
+Before running the backend, configure database credentials via environment variables:
+
+go to GOmapping\GOmapping-backend\main\settings.py, you need to configure here
+DATABASES = {
+    "default": {
+        "ENGINE": "mssql",
+        "NAME": "gomapping",
+        "USER": "demo",
+        "PASSWORD": '',
+        "HOST":'',
+        "OPTIONS": {
+            "driver": "ODBC Driver 17 for SQL Server",
+            "extra_params": "TrustServerCertificate=yes",  
+        },
+    }
+}
 ### backend
 1. cd GOmapping-backend
 2. pip install -r requirements.txt

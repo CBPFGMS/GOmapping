@@ -22,11 +22,27 @@ GOmapping-backend/*.pyd
 
 GOmapping-backend/main/settings.py
 
+
+# ===========================
+# Python / Flask (Backend)
+# ===========================
+GOmapping-backend-flask/__pycache__/
+GOmapping-backend-flask/**/*.py[cod]
+GOmapping-backend-flask/*.pyc
+GOmapping-backend-flask/*.pyo
+GOmapping-backend-flask/*.pyd
+
+GOmapping-backend-flask/main/settings.py
+
 # Virtualenv
 GOmapping-backend/venv/
 GOmapping-backend/env/
 GOmapping-backend/.venv/
 GOmapping-backend/.env
+GOmapping-backend-flask/venv/
+GOmapping-backend-flask/env/
+GOmapping-backend-flask/.venv/
+GOmapping-backend-flask/.env
 
 # Django local files
 GOmapping-backend/db.sqlite3

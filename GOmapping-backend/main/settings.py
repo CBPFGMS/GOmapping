@@ -80,6 +80,7 @@ WSGI_APPLICATION = "main.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+# you need to configure here
 DATABASES = {
     "default": {
         #"ENGINE": "django.db.backends.sqlite3",
@@ -93,7 +94,7 @@ DATABASES = {
         #"PORT": '1433'
         "OPTIONS": {
             "driver": "ODBC Driver 17 for SQL Server",
-            "extra_params": "TrustServerCertificate=yes",  # 信任服务器证书
+            "extra_params": "TrustServerCertificate=yes",  
         },
     }
 }
