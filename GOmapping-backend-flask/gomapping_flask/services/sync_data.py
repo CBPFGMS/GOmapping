@@ -38,8 +38,7 @@ def _calculate_match_percent(instance_name, global_name):
 
 class SmartDataSyncService:
     ORG_SUMMARY_URL = (
-        "https://cbpfapi.unocha.org/vo3/odata/GlobalGenericDataExtract"
-        "?SPCode=PF_ORG_SUMMARY&PoolfundCodeAbbrv=&$format=csv"
+        "https://cbpfapi.unocha.org/vo3/odata/GlobalGenericDataExtractSecure?SPCode=PF_ORG_DETAIL&PoolfundCodeAbbrv=&FundTypeId=&$format=csv"
     )
     GLOBAL_ORG_URL = (
         "https://cbpfapi.unocha.org/vo3/odata/GlobalGenericDataExtract"
