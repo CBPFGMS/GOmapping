@@ -25,7 +25,8 @@ class GoSimilarity(db.Model):
 class OrgMapping(db.Model):
     __tablename__ = "org_mapping"
 
-    id = db.Column(db.BigInteger, primary_key=True, autoincrement=True)
+    # Use INTEGER PK for SQLite autoincrement compatibility.
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     global_org_id = db.Column(db.Integer, nullable=False)
     instance_org_id = db.Column(db.Integer)
     instance_org_name = db.Column(db.String(255), nullable=False)

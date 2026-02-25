@@ -1,6 +1,9 @@
-from collections import defaultdict
+import re
 from difflib import SequenceMatcher
+from html import unescape
+from itertools import combinations
 
+from sqlalchemy import text
 from sqlalchemy import func
 
 from ..extensions import db
@@ -8,47 +11,175 @@ from ..knowledge_base import get_recommendation_score
 from ..models import GlobalOrganization, GoSimilarity, OrgMapping
 
 
-def _normalize(text: str) -> str:
-    return " ".join((text or "").lower().split())
+STOP_WORDS = {
+    "the", "of", "for", "and", "in", "to", "a", "an", "at", "on", "&",
+    "de", "del", "y", "et", "la", "le", "les", "el", "los", "las",
+}
 
 
-def compute_similarity_edges(threshold=70.0):
-    gos = GlobalOrganization.query.order_by(GlobalOrganization.global_org_id.asc()).all()
-    edges = []
+def normalize_name(name: str) -> str:
+    if not name:
+        return ""
+    name = unescape(name)
+    name = name.lower()
+    name = re.sub(r"[^\w\s]", " ", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    words = [w for w in name.split() if w and w not in STOP_WORDS]
+    return " ".join(words)
 
-    for i in range(len(gos)):
-        a = gos[i]
-        n1 = _normalize(a.global_org_name)
-        for j in range(i + 1, len(gos)):
-            b = gos[j]
-            n2 = _normalize(b.global_org_name)
-            if not n1 or not n2:
+
+def token_set(norm: str) -> set[str]:
+    if not norm:
+        return set()
+    return set(norm.split())
+
+
+def jaccard(a: set[str], b: set[str]) -> float:
+    if not a or not b:
+        return 0.0
+    inter = len(a & b)
+    if inter == 0:
+        return 0.0
+    union = len(a | b)
+    return inter / union if union else 0.0
+
+
+def weighted_similarity(
+    norm1: str,
+    tok1: set[str],
+    acr1: str,
+    norm2: str,
+    tok2: set[str],
+    acr2: str,
+    original1: str = "",
+    original2: str = "",
+) -> float:
+    if not norm1 or not norm2:
+        return 0.0
+
+    if norm1 == norm2:
+        orig1_clean = original1.lower().strip() if original1 else norm1
+        orig2_clean = original2.lower().strip() if original2 else norm2
+        if orig1_clean == orig2_clean:
+            return 100.0
+        orig_sim = SequenceMatcher(None, orig1_clean, orig2_clean).ratio() * 100.0
+        return min(orig_sim, 98.0)
+
+    seq_sim = SequenceMatcher(None, norm1, norm2).ratio() * 100.0
+    token_sim = jaccard(tok1, tok2) * 100.0
+    acronym_sim = 100.0 if (acr1 and acr2 and acr1 == acr2) else 0.0
+
+    if acronym_sim == 100.0:
+        final_sim = 75.0 + (seq_sim * 0.15) + (token_sim * 0.10)
+    else:
+        final_sim = (seq_sim * 0.5) + (token_sim * 0.3) + (acronym_sim * 0.2)
+
+    return min(final_sim, 100.0)
+
+
+def compute_similarity_edges(threshold=70.0, max_bucket=250):
+    gos = [
+        {
+            "global_org_id": go.global_org_id,
+            "global_org_name": go.global_org_name,
+            "global_acronym": go.global_acronym,
+        }
+        for go in GlobalOrganization.query.order_by(GlobalOrganization.global_org_id.asc()).all()
+    ]
+
+    for go in gos:
+        norm = normalize_name(go.get("global_org_name") or "")
+        go["norm"] = norm
+        go["tok"] = token_set(norm)
+        go["acr"] = (go.get("global_acronym") or "").upper().strip()
+
+    buckets = {}
+    for idx, go in enumerate(gos):
+        keys = set()
+        acr = go["acr"]
+        if acr and 2 <= len(acr) <= 12:
+            keys.add(f"acr:{acr}")
+
+        words = (go["norm"] or "").split()
+        if words:
+            keys.add(f"t0:{words[0]}")
+            keys.add(f"p3:{words[0][:3]}")
+            if len(words) >= 2:
+                keys.add(f"t01:{words[0]}_{words[1]}")
+
+        if go["tok"]:
+            shortest = min(go["tok"], key=len)
+            if len(shortest) >= 4:
+                keys.add(f"sh:{shortest[:4]}")
+
+        for key in keys:
+            buckets.setdefault(key, []).append(idx)
+
+    seen_pairs = set()
+    candidate_pairs = []
+    for _, idxs in buckets.items():
+        if len(idxs) < 2:
+            continue
+        if len(idxs) > max_bucket:
+            continue
+        for a, b in combinations(idxs, 2):
+            id1 = gos[a]["global_org_id"]
+            id2 = gos[b]["global_org_id"]
+            lo, hi = (id1, id2) if id1 < id2 else (id2, id1)
+            pair_key = (lo, hi)
+            if pair_key in seen_pairs:
                 continue
-            score = round(SequenceMatcher(None, n1, n2).ratio() * 100, 2)
-            if score >= threshold:
-                edges.append((a.global_org_id, b.global_org_id, score))
+            seen_pairs.add(pair_key)
+            candidate_pairs.append((a, b))
+
+    edges = []
+    for a, b in candidate_pairs:
+        go1 = gos[a]
+        go2 = gos[b]
+
+        jac = jaccard(go1["tok"], go2["tok"])
+        if jac < 0.10 and not (go1["acr"] and go2["acr"] and go1["acr"] == go2["acr"]):
+            continue
+
+        sim = weighted_similarity(
+            go1["norm"],
+            go1["tok"],
+            go1["acr"],
+            go2["norm"],
+            go2["tok"],
+            go2["acr"],
+            go1.get("global_org_name", ""),
+            go2.get("global_org_name", ""),
+        )
+        if sim >= threshold:
+            edges.append((go1["global_org_id"], go2["global_org_id"], round(sim, 2)))
 
     return edges
 
 
-def recalculate_similarity_table(threshold=70.0):
-    GoSimilarity.query.delete()
-    edges = compute_similarity_edges(threshold=threshold)
+def recalculate_similarity_table(threshold=70.0, max_bucket=250):
+    db.session.execute(text("DELETE FROM go_similarity"))
+    edges = compute_similarity_edges(threshold=threshold, max_bucket=max_bucket)
+
+    rows = []
     for source_id, target_id, score in edges:
-        db.session.add(
-            GoSimilarity(
-                source_global_org_id=source_id,
-                target_global_org_id=target_id,
-                similarity_percent=score,
-            )
+        rows.append(
+            {
+                "source_global_org_id": source_id,
+                "target_global_org_id": target_id,
+                "similarity_percent": score,
+            }
         )
-        db.session.add(
-            GoSimilarity(
-                source_global_org_id=target_id,
-                target_global_org_id=source_id,
-                similarity_percent=score,
-            )
+        rows.append(
+            {
+                "source_global_org_id": target_id,
+                "target_global_org_id": source_id,
+                "similarity_percent": score,
+            }
         )
+
+    if rows:
+        db.session.bulk_insert_mappings(GoSimilarity, rows)
     db.session.commit()
     return len(edges)
 

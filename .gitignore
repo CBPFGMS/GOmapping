@@ -1,11 +1,11 @@
 # ===========================
-# OS 系统文件
+# OS 
 # ===========================
 .DS_Store
 Thumbs.db
 
 # ===========================
-# IDE 配置
+# IDE 
 # ===========================
 .idea/
 .vscode/
@@ -33,6 +33,10 @@ GOmapping-backend-flask/*.pyo
 GOmapping-backend-flask/*.pyd
 
 GOmapping-backend-flask/main/settings.py
+
+# SQLite
+*.db
+*.sqlite3
 
 # Virtualenv
 GOmapping-backend/venv/
@@ -63,7 +67,7 @@ GOmapping-frontend/dist/
 GOmapping-frontend/build/
 GOmapping-frontend/.temp/
 
-# env files (前端)
+# env files (front end)
 GOmapping-frontend/.env
 GOmapping-frontend/.env.*.local
 
@@ -72,7 +76,7 @@ GOmapping-frontend/.eslintcache
 GOmapping-frontend/tsconfig.tsbuildinfo
 
 # ===========================
-# Git / Editor 缓存
+# Git / Editor 
 # ===========================
 *.swp
 *.swo

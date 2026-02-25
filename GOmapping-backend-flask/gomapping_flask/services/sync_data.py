@@ -236,10 +236,14 @@ class SmartDataSyncService:
                 "message": f"Successfully synced {fetched} records: {created} created, {updated} updated",
             }
         except Exception as exc:
-            log.status = "failed"
-            log.error_message = str(exc)
-            log.completed_at = datetime.utcnow()
-            db.session.commit()
+            # Roll back the failed transaction first, then persist failure details.
+            db.session.rollback()
+            failed_log = DataSyncLog.query.filter_by(sync_id=log.sync_id).first()
+            if failed_log:
+                failed_log.status = "failed"
+                failed_log.error_message = str(exc)
+                failed_log.completed_at = datetime.utcnow()
+                db.session.commit()
             raise
 
     def sync_global_orgs(self, triggered_by="manual", force=False):

@@ -21,15 +21,26 @@ Server starts at `http://localhost:8000`.
 ## Environment Variables
 
 - `FLASK_DEBUG` (default: `true`)
-- `DB_NAME` (default: `gomapping`)
-- `DB_USER` (default: `demo`)
-- `DB_PASSWORD`
-- `DB_HOST` (default: `OCHAL25109748\SQLEXPRESS`)
-- `ODBC_DRIVER` (default: `ODBC Driver 17 for SQL Server`)
-- `DB_TRUST_CERT` (default: `yes`)
+- `DB_ENGINE` (default: `sqlite`, options: `sqlite` / `mssql`)
+- `SQLITE_PATH` (default: `gomapping.db`)
+- `AUTO_CREATE_TABLES` (default: `true`, SQLite only)
+- `DATABASE_URL` (optional override, if set it takes highest priority)
+- `DB_NAME` (used by MSSQL mode)
+- `DB_USER` (used by MSSQL mode)
+- `DB_PASSWORD` (used by MSSQL mode)
+- `DB_HOST` (used by MSSQL mode)
+- `ODBC_DRIVER` (used by MSSQL mode, default: `ODBC Driver 17 for SQL Server`)
+- `DB_TRUST_CERT` (used by MSSQL mode, default: `yes`)
 - `CORS_ALLOWED_ORIGINS` (default: `*`)
 - `ZHIPUAI_API_KEY`
 - `CACHE_TTL_SECONDS` (default: `3600`)
+
+## SQLite Notes
+
+- SQLite is now the default database for this Flask backend.
+- No external database server is required.
+- The app auto-creates tables on startup when using SQLite.
+- The SQLite file is created at `GOmapping-backend-flask/gomapping.db` by default.
 
 ## API Endpoints
 
