@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './GOSummary.css';
 import './GOSummary_grouped.css';
@@ -66,6 +66,8 @@ function GOsummary() {
             return saved ? JSON.parse(saved) : {};
         } catch { return {}; }
     }); // {group_id: global_org_id}
+    const syncLockRef = useRef(false);
+    const autoRefreshTriggeredRef = useRef(false);
 
     const fetchData = (forceRefresh = false) => {
         // Only show loading on first load when there's no cache
@@ -117,7 +119,8 @@ function GOsummary() {
 
     // Trigger data sync (backend) - ONLY when user clicks Refresh button
     const triggerSync = async () => {
-        if (syncing) return;
+        if (syncing || syncLockRef.current) return;
+        syncLockRef.current = true;
 
         console.log('🔄 Starting manual sync...');
         setSyncing(true);
@@ -204,6 +207,7 @@ function GOsummary() {
             setSyncProgress(0);
             setSyncElapsedSeconds(0);
             setSyncStartedAt(null);
+            syncLockRef.current = false;
         }
     };
 
@@ -290,6 +294,8 @@ function GOsummary() {
         // Check if we came back from executing a decision — auto trigger full sync with progress
         const params = new URLSearchParams(location.search);
         if (params.get('refreshAfterExecute') === 'true') {
+            if (autoRefreshTriggeredRef.current) return;
+            autoRefreshTriggeredRef.current = true;
             console.log('🔄 Auto-refreshing after decision execution...');
             sessionStorage.removeItem('go_summary_data');
             window.history.replaceState({}, '', '/');

@@ -200,6 +200,36 @@ class SmartDataSyncService:
                 "message": f"Skipped: {reason}",
             }
 
+        # Prevent concurrent same-type sync runs (common in double-trigger scenarios).
+        running_log = (
+            DataSyncLog.query.filter_by(sync_type=sync_type, status="running")
+            .order_by(DataSyncLog.started_at.desc())
+            .first()
+        )
+        if running_log:
+            if running_log.started_at:
+                elapsed_seconds = (datetime.utcnow() - running_log.started_at).total_seconds()
+                # If a previous run has been "running" too long, mark it as failed and continue.
+                if elapsed_seconds > 1800:
+                    running_log.status = "failed"
+                    running_log.error_message = "Marked failed due to timeout (stale running sync)."
+                    running_log.completed_at = datetime.utcnow()
+                    db.session.commit()
+                else:
+                    return {
+                        "synced": False,
+                        "reason": "already_running",
+                        "last_sync_time": running_log.started_at.isoformat(),
+                        "message": "Skipped: already_running",
+                    }
+            else:
+                return {
+                    "synced": False,
+                    "reason": "already_running",
+                    "last_sync_time": None,
+                    "message": "Skipped: already_running",
+                }
+
         log = DataSyncLog(sync_type=sync_type, status="running", triggered_by=triggered_by)
         db.session.add(log)
         db.session.commit()
