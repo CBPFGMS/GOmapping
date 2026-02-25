@@ -32,7 +32,11 @@ Server starts at `http://localhost:8000`.
 - `ODBC_DRIVER` (used by MSSQL mode, default: `ODBC Driver 17 for SQL Server`)
 - `DB_TRUST_CERT` (used by MSSQL mode, default: `yes`)
 - `CORS_ALLOWED_ORIGINS` (default: `*`)
-- `ZHIPUAI_API_KEY`
+- `AZURE_OPENAI_ENDPOINT` (default: `https://pfbi-openai-test.openai.azure.com/`)
+- `AZURE_OPENAI_LOCATION` (default: `westeurope`)
+- `AZURE_OPENAI_API_VERSION` (default: `2025-01-01-preview`)
+- `AZURE_OPENAI_API_KEY`
+- `AZURE_OPENAI_DEPLOYMENT` (Azure model deployment name, default: `gpt-4o-mini`)
 - `CACHE_TTL_SECONDS` (default: `3600`)
 
 ## SQLite Notes

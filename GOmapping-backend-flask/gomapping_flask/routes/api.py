@@ -183,11 +183,15 @@ Return strict JSON only:
   "analysis": "<short explanation>"
 }}"""
     try:
-        from zhipuai import ZhipuAI
+        from openai import AzureOpenAI
 
-        client = ZhipuAI(api_key=current_app.config["ZHIPUAI_API_KEY"])
+        client = AzureOpenAI(
+            api_key=current_app.config["AZURE_OPENAI_API_KEY"],
+            api_version=current_app.config["AZURE_OPENAI_API_VERSION"],
+            azure_endpoint=current_app.config["AZURE_OPENAI_ENDPOINT"],
+        )
         completion = client.chat.completions.create(
-            model="glm-4.7-flash",
+            model=current_app.config["AZURE_OPENAI_DEPLOYMENT"],
             messages=[
                 {"role": "system", "content": "Respond with valid JSON only."},
                 {"role": "user", "content": prompt},
@@ -243,7 +247,7 @@ Return strict JSON only:
             }
         )
     except Exception as exc:
-        return _json_error(f"ZhipuAI API error: {str(exc)}", 500)
+        return _json_error(f"Azure OpenAI API error: {str(exc)}", 500)
 
 
 @api_bp.get("/sync-status/")

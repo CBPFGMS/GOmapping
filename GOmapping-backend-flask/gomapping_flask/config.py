@@ -49,8 +49,20 @@ class Config:
             else "*"
         )
 
-        self.ZHIPUAI_API_KEY = os.getenv(
-            "ZHIPUAI_API_KEY",
-            "c4d74482a5e64890a44fd5cd2e6af2c3.LouAL40edi1tZss8",
+        # Azure OpenAI configuration
+        self.AZURE_OPENAI_ENDPOINT = os.getenv(
+            "AZURE_OPENAI_ENDPOINT",
+            "https://pfbi-openai-test.openai.azure.com/",
         )
+        self.AZURE_OPENAI_LOCATION = os.getenv("AZURE_OPENAI_LOCATION", "westeurope")
+        self.AZURE_OPENAI_API_VERSION = os.getenv(
+            "AZURE_OPENAI_API_VERSION",
+            "2025-01-01-preview",
+        )
+        self.AZURE_OPENAI_API_KEY = os.getenv(
+            "AZURE_OPENAI_API_KEY",
+            "92d83bf9835b47b7b63bbd0a32e6fecb",
+        )
+        # Use your Azure deployment name here.
+        self.AZURE_OPENAI_DEPLOYMENT = os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1")
         self.CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", "3600"))
