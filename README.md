@@ -1,67 +1,56 @@
 # GOmapping
 
-## Overview
-GOmapping is a full-stack web application for managing mappings between **Global Organizations** and **Instance Organizations**.  
-It provides:
-- duplicate/similarity detection for global organizations
-- merge/remap decision tracking and execution
-- external data synchronization from UNOCHA CBPF APIs
-- optional AI recommendation for master organization selection
+GOmapping is a full-stack app for managing mappings between **Global Organizations** and **Instance Organizations**.
 
----
+## Features
+- Duplicate/similarity detection for Global Organizations
+- Merge decision recording and execution
+- Data sync from UNOCHA CBPF APIs
+- Optional AI recommendation for KEEP/MERGE decisions
 
 ## Tech Stack
-- **Frontend**: React + Vite + React Router
-- **Backend**: Django + Django REST Framework
-- **Database**: Microsoft SQL Server (ODBC Driver 17)
-- **AI (optional)**: ZhipuAI
-- **External data source**: UNOCHA CBPF CSV APIs
-
----
+- Frontend: React + Vite + React Router
+- Backend: Flask + SQLAlchemy
+- Database: SQLite (default)
+- AI: Azure OpenAI (optional)
 
 ## Repository Structure
 - `GOmapping-frontend/` - frontend app
-- `GOmapping-backend/` - backend app
-  - `api/` - API endpoints and sync services
-  - `orgnizations/` - data models
-  - `scripts/` - data import/sync scripts
-  - `main/` - Django project settings
+- `GOmapping-backend-flask/` - Flask backend
+- `GOmapping-backend/` - legacy Django backend (reference only)
 
----
-
-## Prerequisites
+## Prerequisitess
 - Node.js >= 18
 - Python >= 3.12
-- SQL Server
-- ODBC Driver 17 for SQL Server
 
 ## Quick Start
 
-### database
-Before running the backend, configure database credentials via environment variables:
+### 1) Start backend (Flask)
+```
+cd GOmapping-backend-flask
+pip install -r requirements.txt
+python app.py
+```
 
-go to GOmapping\GOmapping-backend\main\settings.py, you need to configure here
-DATABASES = {
-    "default": {
-        "ENGINE": "mssql",
-        "NAME": "gomapping",
-        "USER": "demo",
-        "PASSWORD": '',
-        "HOST":'',
-        "OPTIONS": {
-            "driver": "ODBC Driver 17 for SQL Server",
-            "extra_params": "TrustServerCertificate=yes",  
-        },
-    }
-}
-### backend
-1. cd GOmapping-backend
-2. pip install -r requirements.txt
-3. python manage.py migrate
+Backend runs at `http://localhost:8000`.
 
+### 2) Start frontend
+```bash
+cd GOmapping-frontend
+npm install
+npm run dev
+```
 
-### frontend
-1. cd GOmapping-frontend
-2. npm install
-3. npm run dev
+Frontend runs at `http://localhost:5173`.
+
+## Database
+
+SQLite:
+- File path: `GOmapping-backend-flask/gomapping.db`
+- Tables are auto-created on startup (`AUTO_CREATE_TABLES=true` by default)
+
+Important:
+- Do **not** commit `gomapping.db` to GitHub.
+- Keep the database file on persistent storage in production.
+
 
